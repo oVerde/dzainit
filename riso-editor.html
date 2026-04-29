@@ -647,6 +647,133 @@
         border: none;
         border-radius: 12px;
       }
+
+      .color-picker-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        border: 2px solid var(--accent);
+        background: var(--paper);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+
+      .color-picker-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      .color-picker-btn svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--accent);
+        stroke-width: 1.5;
+        fill: none;
+        color: var(--accent);
+      }
+
+      .color-picker-btn svg circle[fill] {
+        fill: currentColor;
+      }
+
+      .color-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+      }
+
+      .color-modal.active {
+        display: flex;
+      }
+
+      .color-modal-content {
+        background: var(--paper);
+        border: 2px solid var(--accent);
+        border-radius: 24px;
+        padding: 28px;
+        max-width: 320px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      }
+
+      .color-modal-title {
+        font-family: "Nunito", sans-serif;
+        font-size: 14px;
+        font-weight: 900;
+        color: var(--accent);
+        letter-spacing: 0.06em;
+        margin-bottom: 16px;
+        text-transform: uppercase;
+      }
+
+      .color-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 48px);
+        gap: 12px;
+        margin-bottom: 20px;
+        justify-content: center;
+      }
+
+      .color-option {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        border: 3px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .color-option:hover {
+        transform: scale(1.1);
+      }
+
+      .color-option.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+      }
+
+      .color-modal-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .color-modal-btn {
+        padding: 8px 16px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-family: "Nunito", sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: all 0.15s;
+        border: 2px solid var(--accent);
+        background: var(--paper);
+        color: var(--accent);
+        text-transform: uppercase;
+      }
+
+      .color-modal-btn:hover {
+        background: var(--accent);
+        color: var(--paper);
+      }
+
+      .color-modal-btn.primary {
+        background: var(--accent);
+        color: var(--paper);
+      }
+
+      .color-modal-btn.primary:hover {
+        background: var(--paper);
+        color: var(--accent);
+      }
     </style>
   </head>
   <body>
@@ -655,7 +782,26 @@
         <h1>Actually Design it</h1>
         <div class="subtitle">Riso Editor</div>
       </div>
+      <button class="color-picker-btn" id="colorPickerBtn" title="Mudar cor de destaque">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="8" r="2" fill="currentColor"/>
+          <circle cx="16" cy="14" r="2" fill="currentColor"/>
+          <circle cx="8" cy="14" r="2" fill="currentColor"/>
+        </svg>
+      </button>
     </header>
+
+    <div class="color-modal" id="colorModal">
+      <div class="color-modal-content">
+        <div class="color-modal-title">Cor de Destaque</div>
+        <div class="color-grid" id="colorGrid"></div>
+        <div class="color-modal-buttons">
+          <button class="color-modal-btn" id="colorCancelBtn">Cancelar</button>
+          <button class="color-modal-btn primary" id="colorConfirmBtn">Confirmar</button>
+        </div>
+      </div>
+    </div>
 
     <div class="workspace">
       <div class="sidebar">
@@ -911,10 +1057,12 @@
         "#64B544",
         "#E349A8",
       ];
-      var themeAccent =
+      var themeAccent = localStorage.getItem("themeAccent") ||
         themeAccents[Math.floor(Math.random() * themeAccents.length)];
+      var selectedAccent = themeAccent;
       document.documentElement.style.setProperty("--accent", themeAccent);
       document.documentElement.style.setProperty("--paper", "#FCF6E0");
+      localStorage.setItem("themeAccent", themeAccent);
 
       var ch1Ink = document.getElementById("ch1Ink");
       var ch2Ink = document.getElementById("ch2Ink");
@@ -1028,6 +1176,69 @@
           }
         }, 300);
       }
+
+      // Color picker functionality
+      var colorModal = document.getElementById("colorModal");
+      var colorGrid = document.getElementById("colorGrid");
+      var colorPickerBtn = document.getElementById("colorPickerBtn");
+      var colorCancelBtn = document.getElementById("colorCancelBtn");
+      var colorConfirmBtn = document.getElementById("colorConfirmBtn");
+
+      // Populate color grid
+      themeAccents.forEach(function (color) {
+        var colorOption = document.createElement("div");
+        colorOption.className = "color-option";
+        if (color === selectedAccent) colorOption.classList.add("selected");
+        colorOption.style.backgroundColor = color;
+        colorOption.addEventListener("click", function () {
+          document
+            .querySelectorAll(".color-option")
+            .forEach(function (opt) {
+              opt.classList.remove("selected");
+            });
+          colorOption.classList.add("selected");
+          selectedAccent = color;
+        });
+        colorGrid.appendChild(colorOption);
+      });
+
+      // Open color modal
+      colorPickerBtn.addEventListener("click", function () {
+        colorModal.classList.add("active");
+      });
+
+      // Close color modal
+      colorCancelBtn.addEventListener("click", function () {
+        colorModal.classList.remove("active");
+      });
+
+      // Confirm color change
+      colorConfirmBtn.addEventListener("click", function () {
+        themeAccent = selectedAccent;
+        document.documentElement.style.setProperty("--accent", themeAccent);
+        localStorage.setItem("themeAccent", themeAccent);
+
+        // Update ink colors
+        if (ch1Ink) ch1Ink.value = themeAccent;
+        if (ch2Ink) ch2Ink.value = themeAccent;
+        if (ch1InkVal) ch1InkVal.textContent = themeAccent;
+        if (ch2InkVal) ch2InkVal.textContent = themeAccent;
+
+        // Re-render if image is loaded
+        if (srcImage && !document.getElementById("renderBtn").disabled) {
+          renderRiso();
+        }
+
+        colorModal.classList.remove("active");
+        showNotification("Cor de destaque alterada para " + themeAccent);
+      });
+
+      // Close modal when clicking outside
+      colorModal.addEventListener("click", function (e) {
+        if (e.target === colorModal) {
+          colorModal.classList.remove("active");
+        }
+      });
 
       function createSeededRandom(seed) {
         var s = seed >>> 0 || 1;
