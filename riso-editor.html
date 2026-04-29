@@ -1,0 +1,2138 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Riso Editor — Halftone</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap");
+      @font-face {
+        font-family: "Elizeth";
+        src: local("Elizeth");
+        font-display: swap;
+      }
+      :root {
+        --paper: #fcf6e0;
+        --accent: #1a4184;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Nunito", sans-serif;
+        background: var(--paper);
+        color: var(--accent);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      header {
+        padding: 18px 24px;
+        border-bottom: 2px solid var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        background: var(--paper);
+      }
+      header .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        font-family: "Nunito", sans-serif;
+        font-size: clamp(34px, 6vw, 72px);
+        font-weight: 900;
+        line-height: 0.92;
+        letter-spacing: -0.05em;
+        color: var(--paper);
+        -webkit-text-stroke: 12px var(--accent);
+        paint-order: stroke fill;
+        text-transform: none;
+        display: inline-block;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+        text-shadow:
+          0 0 0 var(--accent),
+          2px 0 0 var(--accent),
+          -2px 0 0 var(--accent),
+          0 2px 0 var(--accent),
+          0 -2px 0 var(--accent),
+          2px 2px 0 var(--accent),
+          -2px 2px 0 var(--accent),
+          2px -2px 0 var(--accent),
+          -2px -2px 0 var(--accent);
+      }
+      header .subtitle {
+        font-family: "Nunito", sans-serif;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--accent);
+        border: 3px solid var(--accent);
+        border-radius: 999px;
+        padding: 0.75em 1em 0.65em;
+        background: var(--paper);
+      }
+      .workspace {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        height: calc(100vh - 74px);
+        background: var(--paper);
+      }
+      .sidebar {
+        width: 290px;
+        min-width: 290px;
+        background: var(--paper);
+        border-right: 2px solid var(--accent);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        max-height: calc(100vh - 100px);
+      }
+      .sidebar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .sidebar::-webkit-scrollbar-track {
+        background: var(--paper);
+      }
+      .sidebar::-webkit-scrollbar-thumb {
+        background: var(--accent);
+        border-radius: 999px;
+      }
+      .canvas-area {
+        overflow: hidden !important;
+        flex: 1;
+        background: var(--paper);
+      }
+      .section {
+        border-bottom: 2px solid var(--accent);
+        padding: 16px;
+      }
+      .section-title {
+        font-size: 9px;
+        letter-spacing: 0.22em;
+        color: var(--accent);
+        text-transform: uppercase;
+        font-family: "Nunito", sans-serif;
+        font-weight: 900;
+        margin-bottom: 14px;
+      }
+      .upload-zone {
+        border: 2px solid var(--accent);
+        border-radius: 18px;
+        padding: 20px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition:
+          transform 0.15s,
+          background 0.2s,
+          color 0.2s;
+        background: var(--paper);
+        color: var(--accent);
+      }
+      .upload-zone:hover {
+        background: var(--accent);
+        color: var(--paper);
+        transform: translateY(-1px);
+      }
+      .upload-zone.has-file {
+        border-style: solid;
+      }
+      .upload-zone .icon {
+        width: 32px;
+        height: 32px;
+        margin: 0 auto 10px;
+        border: 2px solid var(--accent);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: inherit;
+        font-size: 16px;
+      }
+      .upload-zone p {
+        font-size: 12px;
+        color: inherit;
+        line-height: 1.5;
+        font-family: "Nunito", sans-serif;
+      }
+      .upload-zone p strong {
+        display: block;
+        color: inherit;
+        font-weight: 800;
+        margin-bottom: 2px;
+      }
+      #fileInput {
+        display: none;
+      }
+      .field {
+        margin-bottom: 14px;
+      }
+      .field:last-child {
+        margin-bottom: 0;
+      }
+      .field label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        color: var(--accent);
+        margin-bottom: 7px;
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+      .field label span {
+        color: var(--accent);
+        font-size: 10px;
+      }
+      input[type="range"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 100%;
+        height: 2px;
+        background: var(--accent);
+        outline: none;
+        border-radius: 999px;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--paper);
+        cursor: pointer;
+        border: 2px solid var(--accent);
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--paper);
+        cursor: pointer;
+        border: 2px solid var(--accent);
+      }
+      .inline-select {
+        width: 100%;
+        background: var(--paper);
+        border: 2px solid var(--accent);
+        border-radius: 16px;
+        color: var(--accent);
+        font-size: 11px;
+        padding: 8px 34px 8px 12px;
+        outline: none;
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231A4184'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+      }
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .toggle-label {
+        font-size: 11px;
+        color: var(--accent);
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+      .toggle {
+        width: 34px;
+        height: 20px;
+        background: var(--paper);
+        border-radius: 999px;
+        cursor: pointer;
+        position: relative;
+        transition:
+          transform 0.15s,
+          background 0.2s,
+          border-color 0.2s;
+        border: 2px solid var(--accent);
+        flex-shrink: 0;
+      }
+      .toggle.on {
+        background: var(--accent);
+      }
+      .toggle::after {
+        content: "";
+        width: 12px;
+        height: 12px;
+        background: var(--paper);
+        border: 2px solid var(--accent);
+        border-radius: 50%;
+        position: absolute;
+        top: 0px;
+        left: -1px;
+        transition: left 0.2s;
+      }
+      .toggle.on::after {
+        left: 16px;
+      }
+      input[type="text"] {
+        width: 100%;
+        background: var(--paper);
+        border: 2px solid var(--accent);
+        border-radius: 16px;
+        color: var(--accent);
+        font-size: 13px;
+        padding: 8px 10px;
+        outline: none;
+        font-family: "Nunito", sans-serif;
+      }
+      input[type="text"]:focus {
+        border-color: var(--accent);
+      }
+      .btn-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .btn {
+        padding: 9px 14px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-family: "Nunito", sans-serif;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: all 0.15s;
+        border: 2px solid var(--accent);
+        background: var(--paper);
+        color: var(--accent);
+      }
+      .btn:hover {
+        background: var(--accent);
+        color: var(--paper);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--paper);
+      }
+      .btn.primary:hover {
+        background: var(--paper);
+        color: var(--accent);
+      }
+      .btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .canvas-area {
+        flex: 1;
+        background: var(--paper);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+      }
+      .canvas-wrapper {
+        position: relative;
+        cursor: grab;
+        transform-origin: center center;
+      }
+      .canvas-wrapper:active {
+        cursor: grabbing;
+      }
+      #mainCanvas {
+        display: block;
+        border: 3px solid var(--accent);
+      }
+      .transform-box {
+        position: absolute;
+        border: 2px dashed var(--accent);
+        display: none;
+        pointer-events: none;
+        z-index: 3;
+      }
+      .transform-box.active {
+        display: block;
+        pointer-events: auto;
+      }
+      .transform-handle {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        right: -6px;
+        bottom: -6px;
+        background: var(--accent);
+        border: 2px solid var(--paper);
+        border-radius: 50%;
+        cursor: nwse-resize;
+      }
+      .empty-state {
+        text-align: center;
+        pointer-events: none;
+        position: absolute;
+      }
+      .empty-state .icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: var(--accent);
+      }
+      .empty-state p {
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        color: var(--accent);
+        line-height: 1.8;
+      }
+      .zoom-controls {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .zoom-btn {
+        width: 32px;
+        height: 32px;
+        background: var(--paper);
+        border: 2px solid var(--accent);
+        border-radius: 999px;
+        color: var(--accent);
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+      }
+      .zoom-btn:hover {
+        background: var(--accent);
+        color: var(--paper);
+      }
+      .zoom-label {
+        font-size: 10px;
+        color: var(--accent);
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        min-width: 40px;
+        text-align: center;
+      }
+      .hint {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 10px;
+        color: var(--accent);
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      .hidden-fields {
+        display: none;
+      }
+      .processing-overlay {
+        position: absolute;
+        inset: 0;
+        background: var(--paper);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        z-index: 10;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .processing-overlay.active {
+        opacity: 1;
+        pointer-events: all;
+      }
+      .processing-text {
+        font-family: "Nunito", sans-serif;
+        font-size: 11px;
+        color: var(--accent);
+        font-weight: 900;
+        letter-spacing: 0.15em;
+      }
+      .processing-bar {
+        width: 160px;
+        height: 2px;
+        background: var(--accent);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .processing-fill {
+        height: 100%;
+        background: var(--paper);
+        transition: width 0.3s;
+      }
+
+      .custom-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--accent);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        font-family: "Nunito", sans-serif;
+        font-weight: 700;
+        font-size: 13px;
+        z-index: 1000;
+        max-width: 320px;
+        animation: slideIn 0.3s ease-out;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes slideOut {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+      }
+
+      .custom-notification.removing {
+        animation: slideOut 0.3s ease-in;
+      }
+
+      .notification-message {
+        margin-bottom: 12px;
+        line-height: 1.4;
+      }
+
+      .notification-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .notification-btn {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        font-family: "Nunito", sans-serif;
+        font-weight: 800;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .notification-btn.primary {
+        background: white;
+        color: var(--accent);
+      }
+
+      .notification-btn.primary:hover {
+        background: rgba(255, 255, 255, 0.85);
+      }
+
+      .notification-btn.secondary {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+      }
+
+      .notification-btn.secondary:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      body,
+      header,
+      .workspace,
+      .sidebar,
+      .section,
+      .canvas-area,
+      .upload-zone,
+      .inline-select,
+      input[type="text"],
+      .btn,
+      .zoom-btn,
+      .toggle,
+      .processing-overlay {
+        color: var(--accent) !important;
+      }
+      .sidebar,
+      .canvas-area,
+      .section,
+      .upload-zone,
+      .inline-select,
+      input[type="text"],
+      .btn,
+      .zoom-btn,
+      .toggle,
+      .processing-overlay,
+      .transform-handle {
+        background-color: var(--paper) !important;
+      }
+      .sidebar,
+      .section,
+      .upload-zone,
+      .inline-select,
+      input[type="text"],
+      .btn,
+      .zoom-btn,
+      .toggle,
+      .transform-box,
+      .transform-handle {
+        border-color: var(--accent) !important;
+      }
+      .sidebar::-webkit-scrollbar-track {
+        background: var(--paper) !important;
+      }
+      .sidebar::-webkit-scrollbar-thumb {
+        background: var(--accent) !important;
+      }
+      .upload-zone:hover,
+      .btn:hover,
+      .zoom-btn:hover,
+      .toggle.on {
+        background-color: var(--accent) !important;
+        color: var(--paper) !important;
+      }
+      .btn.primary {
+        background-color: var(--accent) !important;
+        color: var(--paper) !important;
+      }
+      .btn.primary:hover {
+        background-color: var(--paper) !important;
+        color: var(--accent) !important;
+      }
+      .toggle.on::after {
+        background: var(--paper) !important;
+      }
+      input[type="color"] {
+        width: 100% !important;
+        height: 32px !important;
+        border: 2px solid var(--accent) !important;
+        border-radius: 16px !important;
+        background: var(--paper) !important;
+        cursor: pointer !important;
+        padding: 2px !important;
+      }
+      input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+      input[type="color"]::-webkit-color-swatch {
+        border: none;
+        border-radius: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <h1>Actually Design it</h1>
+        <div class="subtitle">Riso Editor</div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <div class="sidebar">
+        <div class="section">
+          <div class="section-title">Imagem</div>
+          <div class="field">
+            <label>DIRETÓRIO DOWNLOAD <span id="downloadPathLabel">Default</span></label>
+            <input type="text" id="downloadPath" placeholder="deixa em branco para default" />
+          </div>
+          <div class="field">
+            <label>TÍTULO IMG <span id="imgTitleLabel">riso-halftone</span></label>
+            <input type="text" id="imgTitle" value="riso-halftone" placeholder="nome do arquivo" />
+          </div>
+          <div class="upload-zone" id="uploadZone">
+            <div class="icon">↑</div>
+            <p><strong>Clica ou arrasta</strong>JPG, PNG, WebP</p>
+          </div>
+          <input type="file" id="fileInput" accept="image/*" />
+        </div>
+
+        <div class="section">
+          <div class="section-title">Canal 1</div>
+          <div class="field">
+            <label>CANAL RGB <span id="ch1ColorLabel">Vermelho</span></label>
+            <select class="inline-select" id="ch1Color">
+              <option value="red" selected>Vermelho</option>
+              <option value="green">Verde</option>
+              <option value="blue">Azul</option>
+              <option value="luma">Luminosidade</option>
+            </select>
+          </div>
+          <div data-toggle="ch1Toggle">
+            <div class="field">
+              <label>TINTA <span id="ch1InkVal">#1A4184</span></label>
+              <input type="color" id="ch1Ink" value="#1A4184" />
+            </div>
+            <div class="field">
+              <label>OPACIDADE <span id="ch1OpVal">90%</span></label>
+              <input type="range" id="ch1Op" min="0" max="100" value="90" />
+            </div>
+            <div class="field">
+              <label>ANGULO HALFTONE <span id="ch1AngleVal">15°</span></label>
+              <input type="range" id="ch1Angle" min="0" max="90" value="15" />
+            </div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">ACTIVO</span>
+            <button class="toggle on" id="ch1Toggle" data-state="on"></button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Canal 2</div>
+          <div class="field">
+            <label>CANAL RGB <span id="ch2ColorLabel">Azul</span></label>
+            <select class="inline-select" id="ch2Color">
+              <option value="red">Vermelho</option>
+              <option value="green">Verde</option>
+              <option value="blue" selected>Azul</option>
+              <option value="luma">Luminosidade</option>
+            </select>
+          </div>
+          <div data-toggle="ch2Toggle">
+            <div class="field">
+              <label>TINTA <span id="ch2InkVal">#1A4184</span></label>
+              <input type="color" id="ch2Ink" value="#1A4184" />
+            </div>
+            <div class="field">
+              <label>OPACIDADE <span id="ch2OpVal">85%</span></label>
+              <input type="range" id="ch2Op" min="0" max="100" value="85" />
+            </div>
+            <div class="field">
+              <label>ANGULO HALFTONE <span id="ch2AngleVal">75°</span></label>
+              <input type="range" id="ch2Angle" min="0" max="90" value="75" />
+            </div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">ACTIVO</span>
+            <button class="toggle on" id="ch2Toggle" data-state="on"></button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Halftone</div>
+          <div class="field">
+            <label>TAMANHO CELULA <span id="dotSizeVal">6px</span></label>
+            <input type="range" id="dotSize" min="2" max="24" value="6" />
+          </div>
+          <div class="field">
+            <label>CONTRASTE <span id="contrastVal">1.4</span></label>
+            <input type="range" id="contrast" min="5" max="35" value="14" />
+          </div>
+          <div class="field">
+            <label>BRILHO <span id="brightnessVal">0.00</span></label>
+            <input type="range" id="brightness" min="-50" max="50" value="0" />
+          </div>
+          <div class="field">
+            <label>FORMA</label>
+            <select class="inline-select" id="dotShape">
+              <option value="circle" selected>Circulo</option>
+              <option value="square">Quadrado</option>
+              <option value="diamond">Diamante</option>
+              <option value="line">Linha</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Falhas de Tinta</div>
+          <div class="field">
+            <label>INTENSIDADE <span id="inkFailVal">0%</span></label>
+            <input type="range" id="inkFail" min="0" max="100" value="0" />
+          </div>
+          <div class="field">
+            <label>TAMANHO FALHA <span id="wearSizeVal">40%</span></label>
+            <input type="range" id="wearSize" min="5" max="100" value="40" />
+          </div>
+          <div class="field">
+            <label>QUANTIDADE <span id="wearCountVal">35%</span></label>
+            <input type="range" id="wearCount" min="0" max="100" value="35" />
+          </div>
+          <div class="field">
+            <label>SUAVIDADE BORDA <span id="featherVal">30%</span></label>
+            <input type="range" id="feather" min="0" max="100" value="30" />
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Registo e Textura</div>
+          <div class="field">
+            <label>DESLOCAMENTO X <span id="offsetXVal">4px</span></label>
+            <input type="range" id="offsetX" min="-30" max="30" value="4" />
+          </div>
+          <div class="field">
+            <label>DESLOCAMENTO Y <span id="offsetYVal">3px</span></label>
+            <input type="range" id="offsetY" min="-30" max="30" value="3" />
+          </div>
+          <div data-toggle-inverse="removeBgToggle">
+            <div class="field">
+              <label>GRAIN PAPEL <span id="grainVal">40%</span></label>
+              <input type="range" id="grain" min="0" max="100" value="40" />
+            </div>
+          </div>
+          <div class="field">
+            <label>FUNDO</label>
+            <input type="color" id="bgColor" value="#FCF6E0" />
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">REMOVER FUNDO</span>
+            <button
+              class="toggle"
+              id="removeBgToggle"
+              data-state="off"
+            ></button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Halftone Avançado</div>
+          <div class="toggle-row">
+            <span class="toggle-label">INVERTER PONTOS</span>
+            <button
+              class="toggle"
+              id="invertDotsToggle"
+              data-state="off"
+            ></button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Output</div>
+          <div class="field">
+            <label>ESCALA IMG <span id="scaleVal">80%</span></label>
+            <input type="range" id="imgScale" min="10" max="200" value="80" />
+          </div>
+          <div class="field">
+            <label>BLEND MODE</label>
+            <select class="inline-select" id="blendMode">
+              <option value="multiply" selected>multiply</option>
+              <option value="screen">screen</option>
+              <option value="overlay">overlay</option>
+              <option value="darken">darken</option>
+              <option value="lighten">lighten</option>
+              <option value="color-burn">color-burn</option>
+              <option value="hard-light">hard-light</option>
+              <option value="soft-light">soft-light</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>RESOLUCAO</label>
+            <select class="inline-select" id="outputRes">
+              <option value="72">72 DPI (rapido)</option>
+              <option value="144" selected>144 DPI</option>
+              <option value="216">216 DPI (lento)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="btn-row">
+            <button class="btn" id="renderBtn" disabled>Renderizar</button>
+            <button class="btn primary" id="downloadBtn" disabled>
+              Download PNG
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-area" id="canvasArea">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">⬡</div>
+          <p>Carrega uma imagem<br />para comecar</p>
+        </div>
+        <div class="canvas-wrapper" id="canvasWrapper" style="display: none">
+          <canvas id="mainCanvas"></canvas>
+          <div class="transform-box" id="transformBox">
+            <div class="transform-handle" id="transformHandle"></div>
+          </div>
+        </div>
+        <div class="processing-overlay" id="processingOverlay">
+          <span class="processing-text" id="processingMsg">A processar...</span>
+          <div class="processing-bar">
+            <div
+              class="processing-fill"
+              id="processingFill"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomOut">-</button>
+          <span class="zoom-label" id="zoomLabel">100%</span>
+          <button class="zoom-btn" id="zoomIn">+</button>
+          <button class="zoom-btn" id="zoomReset">o</button>
+        </div>
+        <div class="hint">CTRL+SCROLL zoom · BOTAO DO MEIO mover</div>
+      </div>
+    </div>
+
+    <script>
+      var srcImage = null;
+      var zoom = 1,
+        panX = 0,
+        panY = 0;
+      var isPanning = false,
+        panStartX = 0,
+        panStartY = 0;
+
+      var themeAccents = [
+        "#1A4184",
+        "#FF264E",
+        "#F9AD43",
+        "#64B544",
+        "#E349A8",
+      ];
+      var themeAccent =
+        themeAccents[Math.floor(Math.random() * themeAccents.length)];
+      document.documentElement.style.setProperty("--accent", themeAccent);
+      document.documentElement.style.setProperty("--paper", "#FCF6E0");
+
+      var ch1Ink = document.getElementById("ch1Ink");
+      var ch2Ink = document.getElementById("ch2Ink");
+      var bgColor = document.getElementById("bgColor");
+      var ch1InkVal = document.getElementById("ch1InkVal");
+      var ch2InkVal = document.getElementById("ch2InkVal");
+
+      if (ch1Ink) ch1Ink.value = themeAccent;
+      if (ch2Ink) ch2Ink.value = themeAccent;
+      if (bgColor) bgColor.value = "#FCF6E0";
+      if (ch1InkVal) ch1InkVal.textContent = themeAccent;
+      if (ch2InkVal) ch2InkVal.textContent = themeAccent;
+
+      var canvas = document.getElementById("mainCanvas");
+      var ctx = canvas.getContext("2d");
+      var wrapper = document.getElementById("canvasWrapper");
+      var canvasArea = document.getElementById("canvasArea");
+      var emptyState = document.getElementById("emptyState");
+      var processingOverlay = document.getElementById("processingOverlay");
+      var processingMsg = document.getElementById("processingMsg");
+      var processingFill = document.getElementById("processingFill");
+      var zoomLabel = document.getElementById("zoomLabel");
+      var transformBox = document.getElementById("transformBox");
+      var transformHandle = document.getElementById("transformHandle");
+      var wearRandomSeed = Math.floor(Math.random() * 2147483647);
+      var lastImagePlacement = null;
+      var isTransformMode = false;
+      var isResizeDragging = false;
+      var resizeStartX = 0;
+      var resizeStartY = 0;
+      var resizeStartImgW = 0;
+      var resizeRenderTimer = null;
+      var downloadDirHandle = null;
+
+      // Load saved settings from localStorage
+      function loadSettings() {
+        var savedPath = localStorage.getItem("downloadPath");
+        if (savedPath && savedPath !== "[Pasta Selecionada]") {
+          document.getElementById("downloadPath").value = savedPath;
+          document.getElementById("downloadPathLabel").textContent = savedPath || "Default";
+        }
+        var savedTitle = localStorage.getItem("imgTitle");
+        if (savedTitle) {
+          document.getElementById("imgTitle").value = savedTitle;
+          document.getElementById("imgTitleLabel").textContent = savedTitle || "riso-halftone";
+        }
+      }
+      loadSettings();
+
+      // Attempt to restore directory handle from storage
+      async function restoreDirHandle() {
+        try {
+          if (localStorage.getItem("downloadDirHandle")) {
+            var handles = await window.indexedDB.databases ? Promise.resolve([]) : Promise.resolve([]);
+            // Note: Direct restoration of directory handles is not straightforward
+            // User will need to reselect folder after browser restart
+          }
+        } catch (err) {
+          console.log("Não foi possível restaurar a pasta");
+        }
+      }
+      restoreDirHandle();
+
+      // Custom notification system
+      function showNotification(message, options) {
+        options = options || {};
+        var notification = document.createElement("div");
+        notification.className = "custom-notification";
+
+        var messageDiv = document.createElement("div");
+        messageDiv.className = "notification-message";
+        messageDiv.textContent = message;
+        notification.appendChild(messageDiv);
+
+        if (options.buttons && options.buttons.length > 0) {
+          var buttonsDiv = document.createElement("div");
+          buttonsDiv.className = "notification-buttons";
+
+          options.buttons.forEach(function (btn) {
+            var button = document.createElement("button");
+            button.className =
+              "notification-btn " + (btn.type === "primary" ? "primary" : "secondary");
+            button.textContent = btn.text;
+            button.addEventListener("click", function () {
+              if (btn.callback) btn.callback();
+              removeNotification(notification);
+            });
+            buttonsDiv.appendChild(button);
+          });
+
+          notification.appendChild(buttonsDiv);
+        }
+
+        document.body.appendChild(notification);
+
+        // Auto-remove after 5 seconds if no buttons
+        if (!options.buttons || options.buttons.length === 0) {
+          setTimeout(function () {
+            removeNotification(notification);
+          }, 5000);
+        }
+
+        return notification;
+      }
+
+      function removeNotification(notification) {
+        notification.classList.add("removing");
+        setTimeout(function () {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }
+
+      function createSeededRandom(seed) {
+        var s = seed >>> 0 || 1;
+        return function () {
+          s = (s * 1664525 + 1013904223) >>> 0;
+          return s / 4294967296;
+        };
+      }
+
+      function hexToRgb(hex) {
+        return {
+          r: parseInt(hex.slice(1, 3), 16),
+          g: parseInt(hex.slice(3, 5), 16),
+          b: parseInt(hex.slice(5, 7), 16),
+        };
+      }
+
+      function rgbToHex(r, g, b) {
+        function toHex(v) {
+          var h = Math.max(0, Math.min(255, Math.round(v)))
+            .toString(16)
+            .toUpperCase();
+          return h.length === 1 ? "0" + h : h;
+        }
+        return "#" + toHex(r) + toHex(g) + toHex(b);
+      }
+
+      function getCompensatedInkHex(inkHex, bgHex, blendMode) {
+        if (blendMode !== "multiply") return inkHex;
+        var ink = hexToRgb(inkHex);
+        var bg = hexToRgb(bgHex);
+
+        // Multiply output is: out = (src * dst) / 255.
+        // To preserve selected ink on the chosen paper color, solve src = (target * 255) / dst.
+        function compensate(target, paper) {
+          if (paper <= 0) return target;
+          return Math.min(255, (target * 255) / paper);
+        }
+
+        var cr = compensate(ink.r, bg.r);
+        var cg = compensate(ink.g, bg.g);
+        var cb = compensate(ink.b, bg.b);
+        return rgbToHex(cr, cg, cb);
+      }
+
+      function getVal(id) {
+        return document.getElementById(id).value;
+      }
+      function getInt(id) {
+        return parseInt(getVal(id));
+      }
+
+      function tick() {
+        return new Promise(function (r) {
+          setTimeout(r, 16);
+        });
+      }
+
+      function setProgress(pct, msg) {
+        processingFill.style.width = pct + "%";
+        if (msg) processingMsg.textContent = msg;
+      }
+
+      function updateTransformBox() {
+        if (!isTransformMode || !lastImagePlacement || !srcImage) {
+          transformBox.classList.remove("active");
+          return;
+        }
+        transformBox.classList.add("active");
+        transformBox.style.left = lastImagePlacement.imgX + "px";
+        transformBox.style.top = lastImagePlacement.imgY + "px";
+        transformBox.style.width = lastImagePlacement.imgW + "px";
+        transformBox.style.height = lastImagePlacement.imgH + "px";
+      }
+
+      function toggleTransformMode() {
+        if (!srcImage) return;
+        isTransformMode = !isTransformMode;
+        updateTransformBox();
+      }
+
+      function scheduleResizeRender() {
+        clearTimeout(resizeRenderTimer);
+        resizeRenderTimer = setTimeout(function () {
+          renderRiso();
+        }, 80);
+      }
+
+      // Extract one channel as Float32Array (0=dark, 1=bright)
+      function extractChannel(pixels, count, mode) {
+        var out = new Float32Array(count);
+        for (var i = 0; i < count; i++) {
+          var p = i * 4;
+          var r = pixels[p] / 255,
+            g = pixels[p + 1] / 255,
+            b = pixels[p + 2] / 255;
+          if (mode === "red") out[i] = r;
+          else if (mode === "green") out[i] = g;
+          else if (mode === "blue") out[i] = b;
+          else out[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+        }
+        return out;
+      }
+
+      // Apply contrast + brightness
+      function adjustChannel(data, contrast, brightness) {
+        var out = new Float32Array(data.length);
+        for (var i = 0; i < data.length; i++) {
+          var v = data[i] + brightness;
+          v = (v - 0.5) * contrast + 0.5;
+          if (v < 0) v = 0;
+          if (v > 1) v = 1;
+          out[i] = v;
+        }
+        return out;
+      }
+
+      // Draw halftone dots onto an offscreen canvas (imgW x imgH)
+      function halftoneLayer(
+        chData,
+        imgW,
+        imgH,
+        inkHex,
+        cellSize,
+        angleDeg,
+        shape,
+        invert,
+      ) {
+        var offC = document.createElement("canvas");
+        offC.width = imgW;
+        offC.height = imgH;
+        var offCtx = offC.getContext("2d");
+
+        function computePackedRadius(cellSize, tone) {
+          // In dense tones, remove the gap between dots; then progressively return to normal spacing.
+          var normalPack = 0.96;
+          var densePack = 1.0;
+          var denseStart = 0.72;
+          var denseEnd = 0.98;
+          var k = (tone - denseStart) / (denseEnd - denseStart);
+          if (k < 0) k = 0;
+          if (k > 1) k = 1;
+          k = k * k * (3 - 2 * k);
+          var packFactor = normalPack + (densePack - normalPack) * k;
+          return cellSize * 0.5 * packFactor * Math.sqrt(tone);
+        }
+
+        function computeDenseBlend(tone) {
+          // Blend from circle to square as dots get denser.
+          var start = 0.58;
+          var end = 0.96;
+          var k = (tone - start) / (end - start);
+          if (k < 0) k = 0;
+          if (k > 1) k = 1;
+          return k * k * (3 - 2 * k);
+        }
+
+        function drawRoundedSquare(ctx, size, radius) {
+          var h = size * 0.5;
+          var r = radius;
+          if (r < 0) r = 0;
+          if (r > h) r = h;
+          ctx.beginPath();
+          ctx.moveTo(-h + r, -h);
+          ctx.lineTo(h - r, -h);
+          ctx.quadraticCurveTo(h, -h, h, -h + r);
+          ctx.lineTo(h, h - r);
+          ctx.quadraticCurveTo(h, h, h - r, h);
+          ctx.lineTo(-h + r, h);
+          ctx.quadraticCurveTo(-h, h, -h, h - r);
+          ctx.lineTo(-h, -h + r);
+          ctx.quadraticCurveTo(-h, -h, -h + r, -h);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        var ink = hexToRgb(inkHex);
+        offCtx.fillStyle = "rgb(" + ink.r + "," + ink.g + "," + ink.b + ")";
+
+        if (shape === "metaballs") {
+          // True metaballs - optimized with downsampling
+          var angle = (angleDeg * Math.PI) / 180;
+          var cosA = Math.cos(angle),
+            sinA = Math.sin(angle);
+          var diag = Math.ceil(Math.sqrt(imgW * imgW + imgH * imgH));
+          var cx0 = imgW / 2,
+            cy0 = imgH / 2;
+
+          // Collect all ball positions and strengths
+          var balls = [];
+
+          for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
+            for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
+              var ccx = gx + cellSize * 0.5;
+              var ccy = gy + cellSize * 0.5;
+              var sx = ccx * cosA - ccy * sinA + cx0;
+              var sy = ccx * sinA + ccy * cosA + cy0;
+              if (
+                sx < -cellSize * 2 ||
+                sx > imgW + cellSize * 2 ||
+                sy < -cellSize * 2 ||
+                sy > imgH + cellSize * 2
+              )
+                continue;
+
+              var px = Math.round(sx),
+                py = Math.round(sy);
+              if (px < 0) px = 0;
+              if (px >= imgW) px = imgW - 1;
+              if (py < 0) py = 0;
+              if (py >= imgH) py = imgH - 1;
+
+              var val = chData[py * imgW + px];
+              var t = invert ? 1 - val : val;
+              if (t < 0.2) continue;
+              var r = computePackedRadius(cellSize, t);
+              if (r < 0.4) continue;
+
+              balls.push({ x: sx, y: sy, r: r, strength: t });
+            }
+          }
+
+          // Create potential field with downsampling for speed
+          var step = Math.max(1, Math.floor(cellSize / 3));
+          var imgData = offCtx.createImageData(imgW, imgH);
+          var data = imgData.data;
+          var threshold = 0.4;
+
+          // Process at reduced resolution
+          for (var py = 0; py < imgH; py += step) {
+            for (var px = 0; px < imgW; px += step) {
+              var potential = 0;
+
+              // Only check nearby balls
+              for (var b = 0; b < balls.length; b++) {
+                var dx = px - balls[b].x;
+                var dy = py - balls[b].y;
+                var distSq = dx * dx + dy * dy;
+                var radiusSq = balls[b].r * balls[b].r * 6;
+
+                if (distSq < radiusSq) {
+                  var dist = Math.sqrt(distSq);
+                  var influence =
+                    balls[b].strength /
+                    (1 + (dist / balls[b].r) * (dist / balls[b].r));
+                  potential += influence;
+                }
+              }
+
+              if (potential >= threshold) {
+                // Fill step x step block
+                var alpha = Math.min(255, potential * 200);
+                for (var sy = py; sy < Math.min(py + step, imgH); sy++) {
+                  for (var sx = px; sx < Math.min(px + step, imgW); sx++) {
+                    var idx = (sy * imgW + sx) * 4;
+                    data[idx] = ink.r;
+                    data[idx + 1] = ink.g;
+                    data[idx + 2] = ink.b;
+                    data[idx + 3] = alpha;
+                  }
+                }
+              }
+            }
+          }
+
+          offCtx.putImageData(imgData, 0, 0);
+        } else {
+          // Original pattern with rotation
+          var angle = (angleDeg * Math.PI) / 180;
+          var cosA = Math.cos(angle),
+            sinA = Math.sin(angle);
+          var diag = Math.ceil(Math.sqrt(imgW * imgW + imgH * imgH));
+          var cx0 = imgW / 2,
+            cy0 = imgH / 2;
+
+          for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
+            for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
+              // center of this grid cell in rotated coords
+              var ccx = gx + cellSize * 0.5;
+              var ccy = gy + cellSize * 0.5;
+              // unrotate to screen coords
+              var sx = ccx * cosA - ccy * sinA + cx0;
+              var sy = ccx * sinA + ccy * cosA + cy0;
+              if (
+                sx < -cellSize * 2 ||
+                sx > imgW + cellSize * 2 ||
+                sy < -cellSize * 2 ||
+                sy > imgH + cellSize * 2
+              )
+                continue;
+
+              var px = Math.round(sx),
+                py = Math.round(sy);
+              if (px < 0) px = 0;
+              if (px >= imgW) px = imgW - 1;
+              if (py < 0) py = 0;
+              if (py >= imgH) py = imgH - 1;
+
+              var val = chData[py * imgW + px]; // 0=dark 1=light
+              var t = invert ? 1 - val : val; // Invert if needed
+              if (t < 0.2) continue; // Skip very dark areas
+              var r = computePackedRadius(cellSize, t);
+              if (r < 0.4) continue;
+
+              offCtx.save();
+              offCtx.translate(sx, sy);
+              offCtx.rotate(angle);
+
+              if (shape === "circle") {
+                var denseBlend = computeDenseBlend(t);
+                var circleSize = r * 2;
+                var squareSize = Math.min(cellSize * 1.02, circleSize * 1.35);
+                var morphSize =
+                  circleSize + (squareSize - circleSize) * denseBlend;
+                var cornerRadius = morphSize * 0.5 * (1 - denseBlend);
+                drawRoundedSquare(offCtx, morphSize, cornerRadius);
+              } else if (shape === "square") {
+                var s = r * 1.6;
+                offCtx.fillRect(-s / 2, -s / 2, s, s);
+              } else if (shape === "diamond") {
+                offCtx.beginPath();
+                offCtx.moveTo(0, -r * 1.35);
+                offCtx.lineTo(r * 1.35, 0);
+                offCtx.lineTo(0, r * 1.35);
+                offCtx.lineTo(-r * 1.35, 0);
+                offCtx.closePath();
+                offCtx.fill();
+              } else {
+                // line
+                offCtx.fillRect(-cellSize * 0.5, -r * 0.6, cellSize, r * 1.2);
+              }
+
+              offCtx.restore();
+            }
+          }
+        }
+        return offC;
+      }
+
+      // Improved noise function for organic texture
+      function simpleNoise(x, y, seed) {
+        var n =
+          Math.sin(x * 12.9898 + y * 78.233 + seed * 43758.5453) * 43758.5453;
+        return n - Math.floor(n);
+      }
+
+      // Perlin-like noise interpolation
+      function smoothNoise(x, y, seed) {
+        var xi = Math.floor(x);
+        var yi = Math.floor(y);
+        var xf = x - xi;
+        var yf = y - yi;
+
+        // Smoothstep
+        var u = xf * xf * (3.0 - 2.0 * xf);
+        var v = yf * yf * (3.0 - 2.0 * yf);
+
+        var n00 = simpleNoise(xi, yi, seed);
+        var n10 = simpleNoise(xi + 1, yi, seed);
+        var n01 = simpleNoise(xi, yi + 1, seed);
+        var n11 = simpleNoise(xi + 1, yi + 1, seed);
+
+        var nx0 = n00 * (1.0 - u) + n10 * u;
+        var nx1 = n01 * (1.0 - u) + n11 * u;
+        return nx0 * (1.0 - v) + nx1 * v;
+      }
+
+      // Fractal Brownian Motion - multiple octaves of noise
+      function fbm(x, y, octaves, seed) {
+        var value = 0;
+        var amplitude = 1;
+        var frequency = 1;
+        var maxValue = 0;
+
+        for (var i = 0; i < octaves; i++) {
+          value +=
+            amplitude * smoothNoise(x * frequency, y * frequency, seed + i);
+          maxValue += amplitude;
+          amplitude *= 0.5;
+          frequency *= 2;
+        }
+
+        return value / maxValue;
+      }
+
+      // Generate random binary wear mask with smooth probabilistic edges
+      function generateInkFailureMask(
+        w,
+        h,
+        intensity,
+        featherAmount,
+        wearSize,
+        wearCount,
+        randomSeed,
+      ) {
+        if (intensity <= 0) return null;
+
+        var failC = document.createElement("canvas");
+        failC.width = w;
+        failC.height = h;
+        var failCtx = failC.getContext("2d");
+        var failData = failCtx.createImageData(w, h);
+        var data = failData.data;
+
+        var seed = randomSeed || 1;
+        var rand = createSeededRandom(seed);
+        var intensityNorm = intensity / 100;
+        var sizeNorm = wearSize / 100;
+        var countNorm = wearCount / 100;
+        var edgeSoftness = featherAmount / 100;
+        var minDim = Math.min(w, h);
+
+        // Intensity still nudges size and count while sliders provide direct control.
+        var baseCount = Math.round(1 + countNorm * 10);
+        var blobCount = Math.max(
+          1,
+          Math.round(baseCount * (0.7 + intensityNorm * 0.9)),
+        );
+        var baseRadius =
+          minDim * (0.025 + sizeNorm * 0.13) * (0.8 + intensityNorm * 0.7);
+        var edgeRatio = 0.14 + edgeSoftness * 0.55;
+
+        var blobs = [];
+        for (var b = 0; b < blobCount; b++) {
+          blobs.push({
+            cx: rand() * w,
+            cy: rand() * h,
+            r: baseRadius * (0.55 + rand() * 0.95),
+          });
+        }
+
+        for (var py = 0; py < h; py++) {
+          for (var px = 0; px < w; px++) {
+            var idx = (py * w + px) * 4;
+
+            var zoneFactor = 0;
+            for (var bi = 0; bi < blobs.length; bi++) {
+              var dx = px - blobs[bi].cx;
+              var dy = py - blobs[bi].cy;
+              var dist = Math.sqrt(dx * dx + dy * dy);
+              var r = blobs[bi].r;
+              var edgeWidth = r * edgeRatio;
+              var influence = 0;
+
+              if (dist <= r) {
+                var tIn = dist / r;
+                influence = 1 - tIn * tIn * (3 - 2 * tIn);
+              } else if (dist <= r + edgeWidth) {
+                var tEdge = (dist - r) / edgeWidth;
+                if (tEdge < 0) tEdge = 0;
+                if (tEdge > 1) tEdge = 1;
+                influence = (1 - tEdge) * (1 - tEdge);
+              }
+
+              if (influence > zoneFactor) zoneFactor = influence;
+            }
+
+            var whiteA = simpleNoise(px * 0.9, py * 0.9, seed + 401);
+            var whiteB = simpleNoise(px * 1.9, py * 1.9, seed + 509);
+            var whiteC = simpleNoise(px * 3.4, py * 3.4, seed + 613);
+            var whiteNoise = whiteA * 0.45 + whiteB * 0.35 + whiteC * 0.2;
+            var chunkNoise = fbm(px / 130, py / 130, 3, seed + 777);
+            var textureNoise = Math.min(1, whiteNoise * 0.8 + chunkNoise * 0.5);
+
+            // Binary erase with smooth transition by chance ramp, not alpha ramp.
+            var eraseChance = intensityNorm * zoneFactor;
+            eraseChance = eraseChance * (0.6 + textureNoise * 0.75);
+
+            // Extra sparse speckles around edges to avoid hard cut lines.
+            var edgeSpeckle =
+              Math.pow(Math.max(0, zoneFactor), 1.8) *
+              (0.2 + whiteNoise * 0.25);
+            eraseChance =
+              eraseChance + edgeSpeckle * (0.35 + intensityNorm * 0.25);
+
+            if (eraseChance > 1) eraseChance = 1;
+
+            var thresholdNoise = simpleNoise(px * 4.73, py * 4.73, seed + 9973);
+            var erasePixel = thresholdNoise < eraseChance;
+            data[idx] = 0;
+            data[idx + 1] = 0;
+            data[idx + 2] = 0;
+            data[idx + 3] = erasePixel ? 255 : 0;
+          }
+        }
+
+        failCtx.putImageData(failData, 0, 0);
+        return failC;
+      }
+
+      // Add feathering/bleeding effect for more analog look
+      function addInkFeathering(canvas, featherAmount) {
+        if (featherAmount <= 0) return;
+        var ctx = canvas.getContext("2d");
+        var origImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var data = origImageData.data;
+        var w = canvas.width;
+        var h = canvas.height;
+
+        // Apply directional feathering (more downward for gravity effect)
+        var featherRadius = Math.ceil(featherAmount / 20);
+        for (var py = 0; py < h - featherRadius; py++) {
+          for (var px = 0; px < w; px++) {
+            var idx = (py * w + px) * 4;
+            if (data[idx + 3] > 128) {
+              // Bleed slightly downward
+              for (var fy = 1; fy <= featherRadius; fy++) {
+                var fyIdx = ((py + fy) * w + px) * 4;
+                if (fyIdx < data.length) {
+                  var spread =
+                    (1 - fy / featherRadius) * (featherAmount / 100) * 30;
+                  if (Math.random() < spread) {
+                    data[fyIdx + 3] = Math.max(
+                      data[fyIdx + 3],
+                      Math.round(data[idx + 3] * 0.4),
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        ctx.putImageData(origImageData, 0, 0);
+      }
+
+      // Add film grain
+      function addGrain(targetCtx, w, h, amount) {
+        if (amount <= 0) return;
+        var gc = document.createElement("canvas");
+        gc.width = w;
+        gc.height = h;
+        var gCtx = gc.getContext("2d");
+        var id = gCtx.createImageData(w, h);
+        var d = id.data;
+        var str = amount / 100;
+        for (var i = 0; i < d.length; i += 4) {
+          var v = 128 + (Math.random() - 0.5) * 255 * str * 0.9;
+          d[i] = d[i + 1] = d[i + 2] = v;
+          d[i + 3] = Math.round(str * 65);
+        }
+        gCtx.putImageData(id, 0, 0);
+        targetCtx.globalCompositeOperation = "source-over";
+        targetCtx.globalAlpha = 1;
+        targetCtx.drawImage(gc, 0, 0);
+        targetCtx.globalAlpha = 1;
+      }
+
+      async function renderRiso() {
+        if (!srcImage) return;
+        processingOverlay.classList.add("active");
+        setProgress(0, "A preparar...");
+        await tick();
+
+        var dpi = getInt("outputRes");
+        var H = Math.round(11 * dpi);
+        var imgAspectRatio = srcImage.width / srcImage.height;
+        var W = Math.round(H * imgAspectRatio);
+        var imgScalePct = getInt("imgScale") / 100;
+        var bgColor = getVal("bgColor");
+        var blendMode = getVal("blendMode");
+        var cellSize = Math.max(1, (getInt("dotSize") * dpi) / 72);
+        var contrast = getInt("contrast") / 10;
+        var brightness = getInt("brightness") / 100;
+        var grainAmt = getInt("grain");
+        var shape = getVal("dotShape");
+        var regX = (getInt("offsetX") * dpi) / 72;
+        var regY = (getInt("offsetY") * dpi) / 72;
+        var inkFailAmount = getInt("inkFail");
+        var featherAmount = getInt("feather");
+        var wearSize = getInt("wearSize");
+        var wearCount = getInt("wearCount");
+        var ch1On = document.getElementById("ch1Toggle").dataset.state === "on";
+        var ch2On = document.getElementById("ch2Toggle").dataset.state === "on";
+        var removeBg =
+          document.getElementById("removeBgToggle").dataset.state === "on";
+        var invertDots =
+          document.getElementById("invertDotsToggle").dataset.state === "on";
+
+        // Scale source image
+        var imgW = Math.round((srcImage.width * imgScalePct * dpi) / 72);
+        var imgH = Math.round((srcImage.height * imgScalePct * dpi) / 72);
+        if (imgW < 1) imgW = 1;
+        if (imgH < 1) imgH = 1;
+
+        var srcC = document.createElement("canvas");
+        srcC.width = imgW;
+        srcC.height = imgH;
+        var srcCtx = srcC.getContext("2d");
+        srcCtx.drawImage(srcImage, 0, 0, imgW, imgH);
+        var pixels = srcCtx.getImageData(0, 0, imgW, imgH).data;
+
+        var imgX = Math.round((W - imgW) / 2);
+        var imgY = Math.round((H - imgH) / 2);
+        lastImagePlacement = {
+          imgX: imgX,
+          imgY: imgY,
+          imgW: imgW,
+          imgH: imgH,
+          dpi: dpi,
+        };
+
+        canvas.width = W;
+        canvas.height = H;
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, W, H);
+
+        // Pre-generate zone wear mask
+        var failureMask = generateInkFailureMask(
+          W,
+          H,
+          inkFailAmount,
+          featherAmount,
+          wearSize,
+          wearCount,
+          wearRandomSeed,
+        );
+
+        async function drawChannel(
+          channelMode,
+          inkHex,
+          opacity,
+          angle,
+          offX,
+          offY,
+        ) {
+          var chData = extractChannel(pixels, imgW * imgH, channelMode);
+          var adjData = adjustChannel(chData, contrast, brightness);
+
+          var inkForRender = getCompensatedInkHex(inkHex, bgColor, blendMode);
+
+          var halfC = halftoneLayer(
+            adjData,
+            imgW,
+            imgH,
+            inkForRender,
+            cellSize,
+            angle,
+            shape,
+            invertDots,
+          );
+
+          // Place onto full canvas
+          var fullC = document.createElement("canvas");
+          fullC.width = W;
+          fullC.height = H;
+          var fCtx = fullC.getContext("2d");
+          fCtx.drawImage(halfC, imgX + offX, imgY + offY);
+
+          // Apply ink failures
+          if (failureMask && inkFailAmount > 0) {
+            fCtx.globalCompositeOperation = "destination-out";
+            fCtx.drawImage(failureMask, 0, 0);
+            fCtx.globalCompositeOperation = "source-over";
+          }
+
+          ctx.globalAlpha = opacity / 100;
+          ctx.globalCompositeOperation = blendMode;
+          ctx.drawImage(fullC, 0, 0);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = "source-over";
+        }
+
+        if (ch1On) {
+          setProgress(20, "Canal 1 – halftone...");
+          await tick();
+          await drawChannel(
+            getVal("ch1Color"),
+            getVal("ch1Ink"),
+            getInt("ch1Op"),
+            getInt("ch1Angle"),
+            0,
+            0,
+          );
+        }
+
+        if (ch2On) {
+          setProgress(60, "Canal 2 – halftone...");
+          await tick();
+          await drawChannel(
+            getVal("ch2Color"),
+            getVal("ch2Ink"),
+            getInt("ch2Op"),
+            getInt("ch2Angle"),
+            regX,
+            regY,
+          );
+        }
+
+        setProgress(88, "A adicionar grain...");
+        await tick();
+        var finalGrainAmt = removeBg ? 0 : grainAmt;
+        addGrain(ctx, W, H, finalGrainAmt);
+
+        if (removeBg) {
+          setProgress(95, "A remover fundo...");
+          await tick();
+          var imgData = ctx.getImageData(0, 0, W, H);
+          var data = imgData.data;
+          var bgRgb = hexToRgb(bgColor);
+          for (var i = 0; i < data.length; i += 4) {
+            var r = data[i];
+            var g = data[i + 1];
+            var b = data[i + 2];
+            var dR = Math.abs(r - bgRgb.r);
+            var dG = Math.abs(g - bgRgb.g);
+            var dB = Math.abs(b - bgRgb.b);
+            var tolerance = 5; // Stricter for better background removal
+            if (dR < tolerance && dG < tolerance && dB < tolerance) {
+              data[i + 3] = 0; // Remove completely
+            } else if (
+              dR < tolerance * 2.5 &&
+              dG < tolerance * 2.5 &&
+              dB < tolerance * 2.5
+            ) {
+              // Semi-transparent for near-background colors
+              data[i + 3] = Math.round(data[i + 3] * 0.5);
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
+
+        setProgress(100, "Pronto!");
+        await tick();
+
+        applyTransform();
+        updateTransformBox();
+        wrapper.style.display = "block";
+        emptyState.style.display = "none";
+        document.getElementById("downloadBtn").disabled = false;
+        setTimeout(function () {
+          processingOverlay.classList.remove("active");
+        }, 400);
+      }
+
+      function applyTransform() {
+        wrapper.style.transform =
+          "translate(" + panX + "px," + panY + "px) scale(" + zoom + ")";
+        zoomLabel.textContent = Math.round(zoom * 100) + "%";
+        updateTransformBox();
+      }
+
+      document.getElementById("zoomIn").addEventListener("click", function () {
+        zoom = Math.min(zoom * 1.25, 10);
+        applyTransform();
+      });
+      document.getElementById("zoomOut").addEventListener("click", function () {
+        zoom = Math.max(zoom / 1.25, 0.05);
+        applyTransform();
+      });
+      document
+        .getElementById("zoomReset")
+        .addEventListener("click", function () {
+          zoom = 1;
+          panX = 0;
+          panY = 0;
+          applyTransform();
+        });
+
+      canvasArea.addEventListener(
+        "wheel",
+        function (e) {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            zoom = Math.max(
+              0.05,
+              Math.min(10, zoom * (e.deltaY > 0 ? 0.9 : 1.1)),
+            );
+            applyTransform();
+          }
+        },
+        { passive: false },
+      );
+
+      canvasArea.addEventListener("mousedown", function (e) {
+        if (e.button === 1 || (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          isPanning = true;
+          panStartX = e.clientX - panX;
+          panStartY = e.clientY - panY;
+          canvasArea.style.cursor = "grabbing";
+        }
+      });
+      window.addEventListener("mousemove", function (e) {
+        if (isResizeDragging && srcImage && lastImagePlacement) {
+          var dxCanvas = (e.clientX - resizeStartX) / Math.max(zoom, 0.0001);
+          var dyCanvas = (e.clientY - resizeStartY) / Math.max(zoom, 0.0001);
+          var delta = (dxCanvas + dyCanvas) * 0.5;
+          var newW = Math.max(24, resizeStartImgW + delta);
+          var baseWidthAt100 = (srcImage.width * lastImagePlacement.dpi) / 72;
+          var newScale = Math.round((newW / Math.max(1, baseWidthAt100)) * 100);
+          if (newScale < 10) newScale = 10;
+          if (newScale > 200) newScale = 200;
+
+          var scaleInput = document.getElementById("imgScale");
+          if (parseInt(scaleInput.value) !== newScale) {
+            scaleInput.value = String(newScale);
+            document.getElementById("scaleVal").textContent = newScale + "%";
+            scheduleResizeRender();
+          }
+          return;
+        }
+        if (!isPanning) return;
+        panX = e.clientX - panStartX;
+        panY = e.clientY - panStartY;
+        applyTransform();
+      });
+      window.addEventListener("mouseup", function (e) {
+        if (isResizeDragging) {
+          isResizeDragging = false;
+          scheduleResizeRender();
+        }
+        if (isPanning) {
+          isPanning = false;
+          canvasArea.style.cursor = "";
+        }
+      });
+
+      transformHandle.addEventListener("mousedown", function (e) {
+        if (!isTransformMode || !srcImage || !lastImagePlacement) return;
+        e.preventDefault();
+        e.stopPropagation();
+        isResizeDragging = true;
+        resizeStartX = e.clientX;
+        resizeStartY = e.clientY;
+        resizeStartImgW = lastImagePlacement.imgW;
+      });
+
+      window.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === "t" || e.key === "T")) {
+          e.preventDefault();
+          toggleTransformMode();
+        }
+      });
+
+      var uploadZone = document.getElementById("uploadZone");
+      var fileInput = document.getElementById("fileInput");
+      uploadZone.addEventListener("click", function () {
+        fileInput.click();
+      });
+      uploadZone.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = "#E24B4A";
+      });
+      uploadZone.addEventListener("dragleave", function () {
+        uploadZone.style.borderColor = "#333";
+      });
+      uploadZone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        uploadZone.style.borderColor = "#333";
+        var f = e.dataTransfer.files[0];
+        if (f && f.type.indexOf("image/") === 0) loadFile(f);
+      });
+      fileInput.addEventListener("change", function () {
+        if (fileInput.files[0]) loadFile(fileInput.files[0]);
+      });
+
+      function loadFile(file) {
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          var img = new Image();
+          img.onload = function () {
+            srcImage = img;
+            uploadZone.classList.add("has-file");
+            uploadZone.querySelector("p").innerHTML =
+              "<strong>" +
+              file.name +
+              "</strong>" +
+              img.width +
+              "x" +
+              img.height +
+              "px";
+            document.getElementById("renderBtn").disabled = false;
+            zoom = 1;
+            panX = 0;
+            panY = 0;
+            var areaW = canvasArea.offsetWidth - 48;
+            var areaH = canvasArea.offsetHeight - 48;
+            var defaultDpi = 144;
+            zoom = Math.min(
+              areaW / (8.5 * defaultDpi),
+              areaH / (11 * defaultDpi),
+              1,
+            );
+            renderRiso();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      document
+        .getElementById("renderBtn")
+        .addEventListener("click", renderRiso);
+      document
+        .getElementById("downloadBtn")
+        .addEventListener("click", downloadImage);
+
+      // Allow user to select download folder
+      var selectFolderBtn = document.createElement("button");
+      selectFolderBtn.className = "btn";
+      selectFolderBtn.textContent = "Escolher Pasta";
+      selectFolderBtn.style.marginTop = "8px";
+      selectFolderBtn.addEventListener("click", async function () {
+        try {
+          downloadDirHandle = await window.showDirectoryPicker();
+          document.getElementById("downloadPath").value = "[Pasta Selecionada]";
+          document.getElementById("downloadPathLabel").textContent = "[Pasta Selecionada]";
+          localStorage.setItem("downloadDirHandle", true);
+          showNotification("Pasta selecionada com sucesso!");
+        } catch (err) {
+          console.log("Seleção de pasta cancelada");
+        }
+      });
+      document.getElementById("downloadPath").parentNode.appendChild(selectFolderBtn);
+
+      // Download function
+      async function downloadImage() {
+        var imgTitle = document.getElementById("imgTitle").value || "riso-halftone";
+        var filename = imgTitle + ".png";
+
+        try {
+          if (downloadDirHandle) {
+            // Use File System Access API
+            var fileHandle = await downloadDirHandle.getFileHandle(filename, {
+              create: true,
+            });
+            var writable = await fileHandle.createWritable();
+            var blob = await new Promise(function (r) {
+              canvas.toBlob(r, "image/png");
+            });
+            await writable.write(blob);
+            await writable.close();
+            showNotification("Ficheiro guardado em: " + filename);
+          } else {
+            // Fallback: standard download
+            var link = document.createElement("a");
+            link.download = filename;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+            showNotification("Download iniciado: " + filename);
+          }
+        } catch (err) {
+          console.error("Erro ao fazer download:", err);
+          showNotification("Erro ao guardar ficheiro");
+        }
+      }
+
+      // Auto-render when parameters change
+      function setupAutoRender() {
+        var renderTimeout;
+        var scheduleRender = function () {
+          if (document.getElementById("renderBtn").disabled) return;
+          clearTimeout(renderTimeout);
+          renderTimeout = setTimeout(function () {
+            renderRiso();
+          }, 300);
+        };
+
+        // All inputs that should trigger re-render
+        var controlIds = [
+          "ch1Color",
+          "ch1Ink",
+          "ch1Op",
+          "ch1Angle",
+          "ch1Toggle",
+          "ch2Color",
+          "ch2Ink",
+          "ch2Op",
+          "ch2Angle",
+          "ch2Toggle",
+          "dotSize",
+          "contrast",
+          "brightness",
+          "dotShape",
+          "offsetX",
+          "offsetY",
+          "grain",
+          "bgColor",
+          "removeBgToggle",
+          "imgScale",
+          "blendMode",
+          "outputRes",
+          "inkFail",
+          "feather",
+          "wearSize",
+          "wearCount",
+          "invertDotsToggle",
+        ];
+
+        controlIds.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) {
+            el.addEventListener("input", scheduleRender);
+            el.addEventListener("change", scheduleRender);
+          }
+        });
+      }
+      setupAutoRender();
+
+      // Wear randomness should only change when wear controls are edited.
+      ["inkFail", "wearSize", "wearCount", "feather"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var refreshWearSeed = function () {
+          wearRandomSeed = Math.floor(Math.random() * 2147483647);
+        };
+        el.addEventListener("input", refreshWearSeed);
+        el.addEventListener("change", refreshWearSeed);
+      });
+
+      // Range labels
+      var rangeCfg = {
+        ch1Op: ["ch1OpVal", "%"],
+        ch2Op: ["ch2OpVal", "%"],
+        ch1Angle: ["ch1AngleVal", "deg"],
+        ch2Angle: ["ch2AngleVal", "deg"],
+        dotSize: ["dotSizeVal", "px"],
+        grain: ["grainVal", "%"],
+        offsetX: ["offsetXVal", "px"],
+        offsetY: ["offsetYVal", "px"],
+        textSize: ["textSizeVal", "px"],
+        textX: ["textXVal", "%"],
+        textY: ["textYVal", "%"],
+        imgScale: ["scaleVal", "%"],
+        inkFail: ["inkFailVal", "%"],
+        feather: ["featherVal", "%"],
+        wearSize: ["wearSizeVal", "%"],
+        wearCount: ["wearCountVal", "%"],
+      };
+
+      document.querySelectorAll("input[type=range]").forEach(function (el) {
+        el.addEventListener("input", function () {
+          var id = el.id;
+          if (id === "contrast") {
+            document.getElementById("contrastVal").textContent = (
+              parseInt(el.value) / 10
+            ).toFixed(1);
+          } else if (id === "brightness") {
+            document.getElementById("brightnessVal").textContent = (
+              parseInt(el.value) / 100
+            ).toFixed(2);
+          } else if (rangeCfg[id]) {
+            var suffix =
+              rangeCfg[id][1] === "deg"
+                ? String.fromCharCode(176)
+                : rangeCfg[id][1];
+            document.getElementById(rangeCfg[id][0]).textContent =
+              el.value + suffix;
+          }
+        });
+      });
+
+      document.getElementById("ch1Ink").addEventListener("input", function () {
+        document.getElementById("ch1InkVal").textContent =
+          this.value.toUpperCase();
+      });
+      document.getElementById("ch2Ink").addEventListener("input", function () {
+        document.getElementById("ch2InkVal").textContent =
+          this.value.toUpperCase();
+      });
+      document.getElementById("imgTitle").addEventListener("input", function () {
+        document.getElementById("imgTitleLabel").textContent =
+          this.value || "riso-halftone";
+        localStorage.setItem("imgTitle", this.value);
+      });
+      document.getElementById("downloadPath").addEventListener("input", function () {
+        if (this.value !== "[Pasta Selecionada]") {
+          document.getElementById("downloadPathLabel").textContent =
+            this.value || "Default";
+          localStorage.setItem("downloadPath", this.value);
+        }
+      });
+      document
+        .getElementById("ch1Color")
+        .addEventListener("change", function () {
+          document.getElementById("ch1ColorLabel").textContent =
+            this.options[this.selectedIndex].text;
+        });
+      document
+        .getElementById("ch2Color")
+        .addEventListener("change", function () {
+          document.getElementById("ch2ColorLabel").textContent =
+            this.options[this.selectedIndex].text;
+        });
+
+      function updateToggleVisibility(id) {
+        var el = document.querySelector('[data-toggle="' + id + '"]');
+        if (el)
+          el.style.display =
+            document.getElementById(id).dataset.state === "on"
+              ? "block"
+              : "none";
+      }
+
+      ["ch1Toggle", "ch2Toggle", "removeBgToggle", "invertDotsToggle"].forEach(
+        function (id) {
+          document.getElementById(id).addEventListener("click", function () {
+            var on = this.dataset.state === "on";
+            this.dataset.state = on ? "off" : "on";
+            this.classList.toggle("on", !on);
+            updateToggleVisibility(id);
+          });
+        },
+      );
+    </script>
+  </body>
+</html>
