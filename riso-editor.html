@@ -953,9 +953,9 @@
           <div class="toggle-row">
             <span class="toggle-label">REMOVER FUNDO</span>
             <button
-              class="toggle"
+              class="toggle on"
               id="removeBgToggle"
-              data-state="off"
+              data-state="on"
             ></button>
           </div>
         </div>
@@ -1002,10 +1002,18 @@
         </div>
 
         <div class="section">
+          <div class="field">
+            <label>FORMATO EXPORT</label>
+            <select class="inline-select" id="exportFormat">
+              <option value="png">PNG (raster)</option>
+              <option value="svg-color">SVG cores (vetorial)</option>
+              <option value="svg-bw">SVG P&B (para colorir)</option>
+            </select>
+          </div>
           <div class="btn-row">
             <button class="btn" id="renderBtn" disabled>Renderizar</button>
             <button class="btn primary" id="downloadBtn" disabled>
-              Download PNG
+              Download
             </button>
           </div>
         </div>
@@ -1058,12 +1066,11 @@
         "#64B544",
         "#E349A8",
       ];
-      var themeAccent = localStorage.getItem("themeAccent") ||
-        themeAccents[Math.floor(Math.random() * themeAccents.length)];
+      // Seleciona cor aleatória a cada carregamento
+      var themeAccent = themeAccents[Math.floor(Math.random() * themeAccents.length)];
       var selectedAccent = themeAccent;
       document.documentElement.style.setProperty("--accent", themeAccent);
       document.documentElement.style.setProperty("--paper", "#FCF6E0");
-      localStorage.setItem("themeAccent", themeAccent);
 
       var ch1Ink = document.getElementById("ch1Ink");
       var ch2Ink = document.getElementById("ch2Ink");
@@ -2156,21 +2163,339 @@
       });
       document.getElementById("downloadPath").parentNode.appendChild(selectFolderBtn);
 
+      // Generate SVG from halftone data
+      function generateSVGExport(srcImage, params) {
+        return new Promise(function (resolve) {
+          var dpi = params.dpi;
+          var H = Math.round(11 * dpi);
+          var imgAspectRatio = srcImage.width / srcImage.height;
+          var W = Math.round(H * imgAspectRatio);
+          var imgScalePct = params.imgScale / 100;
+          var bgColor = params.bgColor;
+          var cellSize = Math.max(1, (params.dotSize * dpi) / 72);
+          var contrast = params.contrast / 10;
+          var brightness = params.brightness / 100;
+          var shape = params.shape;
+          var regX = (params.offsetX * dpi) / 72;
+          var regY = (params.offsetY * dpi) / 72;
+          var invertDots = params.invertDots;
+          
+          // Scale source image
+          var imgW = Math.round((srcImage.width * imgScalePct * dpi) / 72);
+          var imgH = Math.round((srcImage.height * imgScalePct * dpi) / 72);
+          if (imgW < 1) imgW = 1;
+          if (imgH < 1) imgH = 1;
+
+          var srcC = document.createElement("canvas");
+          srcC.width = imgW;
+          srcC.height = imgH;
+          var srcCtx = srcC.getContext("2d");
+          srcCtx.drawImage(srcImage, 0, 0, imgW, imgH);
+          var pixels = srcCtx.getImageData(0, 0, imgW, imgH).data;
+
+          var imgX = Math.round((W - imgW) / 2);
+          var imgY = Math.round((H - imgH) / 2);
+
+          // Build SVG
+          var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n';
+          svg += '<defs>\n';
+          svg += '  <style>\n';
+          svg += '    .halftone-dot { fill: currentColor; }\n';
+          svg += '  </style>\n';
+          svg += '</defs>\n';
+          
+          // Background
+          if (!params.removeBg) {
+            svg += '<rect width="' + W + '" height="' + H + '" fill="' + bgColor + '"/>\n';
+          }
+          
+          // Create groups for each channel
+          var channels = [];
+          if (params.ch1On) {
+            channels.push({
+              color: params.ch1Ink,
+              opacity: params.ch1Op / 100,
+              angle: params.ch1Angle,
+              channelMode: params.ch1Color,
+              offX: 0,
+              offY: 0
+            });
+          }
+          if (params.ch2On) {
+            channels.push({
+              color: params.ch2Ink,
+              opacity: params.ch2Op / 100,
+              angle: params.ch2Angle,
+              channelMode: params.ch2Color,
+              offX: regX,
+              offY: regY
+            });
+          }
+
+          // Generate halftone dots for each channel
+          channels.forEach(function(ch, idx) {
+            svg += '<g opacity="' + ch.opacity + '" fill="' + ch.color + '">\n';
+            
+            var chData = extractChannel(pixels, imgW * imgH, ch.channelMode);
+            var adjData = adjustChannel(chData, contrast, brightness);
+            
+            var angle = (ch.angle * Math.PI) / 180;
+            var cosA = Math.cos(angle), sinA = Math.sin(angle);
+            var diag = Math.ceil(Math.sqrt(imgW * imgW + imgH * imgH));
+            var cx0 = imgW / 2, cy0 = imgH / 2;
+
+            function computePackedRadius(cellSize, tone) {
+              var normalPack = 0.96;
+              var densePack = 1.0;
+              var denseStart = 0.72;
+              var denseEnd = 0.98;
+              var k = (tone - denseStart) / (denseEnd - denseStart);
+              if (k < 0) k = 0;
+              if (k > 1) k = 1;
+              k = k * k * (3 - 2 * k);
+              var packFactor = normalPack + (densePack - normalPack) * k;
+              return cellSize * 0.5 * packFactor * Math.sqrt(tone);
+            }
+
+            // Generate dots
+            for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
+              for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
+                var ccx = gx + cellSize * 0.5;
+                var ccy = gy + cellSize * 0.5;
+                var sx = ccx * cosA - ccy * sinA + cx0;
+                var sy = ccx * sinA + ccy * cosA + cy0;
+                
+                if (sx < -cellSize * 2 || sx > imgW + cellSize * 2 || sy < -cellSize * 2 || sy > imgH + cellSize * 2) continue;
+
+                var px = Math.round(sx), py = Math.round(sy);
+                if (px < 0) px = 0;
+                if (px >= imgW) px = imgW - 1;
+                if (py < 0) py = 0;
+                if (py >= imgH) py = imgH - 1;
+
+                var val = adjData[py * imgW + px];
+                var t = invertDots ? 1 - val : val;
+                if (t < 0.2) continue;
+                
+                var r = computePackedRadius(cellSize, t);
+                if (r < 0.4) continue;
+
+                var dotX = imgX + ch.offX + sx;
+                var dotY = imgY + ch.offY + sy;
+
+                if (shape === "circle" || shape === "square") {
+                  var size = r * 2;
+                  if (shape === "square") {
+                    svg += '<rect x="' + (dotX - size/2) + '" y="' + (dotY - size/2) + '" width="' + size + '" height="' + size + '"/>\n';
+                  } else {
+                    svg += '<circle cx="' + dotX + '" cy="' + dotY + '" r="' + r + '"/>\n';
+                  }
+                } else if (shape === "diamond") {
+                  var d = r * 1.35;
+                  svg += '<polygon points="' + dotX + ',' + (dotY - d) + ' ' + (dotX + d) + ',' + dotY + ' ' + dotX + ',' + (dotY + d) + ' ' + (dotX - d) + ',' + dotY + '"/>\n';
+                } else {
+                  // line
+                  svg += '<rect x="' + (dotX - cellSize * 0.5) + '" y="' + (dotY - r * 0.6) + '" width="' + cellSize + '" height="' + (r * 1.2) + '"/>\n';
+                }
+              }
+            }
+            
+            svg += '</g>\n';
+          });
+
+          svg += '</svg>';
+          var blob = new Blob([svg], { type: "image/svg+xml" });
+          resolve(blob);
+        });
+      }
+
+      // Generate SVG in Black & White (for coloring in Illustrator)
+      function generateSVGBWExport(srcImage, params) {
+        return new Promise(function (resolve) {
+          var dpi = params.dpi;
+          var H = Math.round(11 * dpi);
+          var imgAspectRatio = srcImage.width / srcImage.height;
+          var W = Math.round(H * imgAspectRatio);
+          var imgScalePct = params.imgScale / 100;
+          var cellSize = Math.max(1, (params.dotSize * dpi) / 72);
+          var contrast = params.contrast / 10;
+          var brightness = params.brightness / 100;
+          var shape = params.shape;
+          var regX = (params.offsetX * dpi) / 72;
+          var regY = (params.offsetY * dpi) / 72;
+          var invertDots = params.invertDots;
+          
+          // Scale source image
+          var imgW = Math.round((srcImage.width * imgScalePct * dpi) / 72);
+          var imgH = Math.round((srcImage.height * imgScalePct * dpi) / 72);
+          if (imgW < 1) imgW = 1;
+          if (imgH < 1) imgH = 1;
+
+          var srcC = document.createElement("canvas");
+          srcC.width = imgW;
+          srcC.height = imgH;
+          var srcCtx = srcC.getContext("2d");
+          srcCtx.drawImage(srcImage, 0, 0, imgW, imgH);
+          var pixels = srcCtx.getImageData(0, 0, imgW, imgH).data;
+
+          var imgX = Math.round((W - imgW) / 2);
+          var imgY = Math.round((H - imgH) / 2);
+
+          // Build SVG
+          var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n';
+          
+          // No background fill - transparent
+          
+          // Create group with all black dots
+          svg += '<g fill="#000000">\n';
+          
+          // Process both channels but render as black
+          var channels = [];
+          if (params.ch1On) {
+            channels.push({
+              angle: params.ch1Angle,
+              channelMode: params.ch1Color,
+              offX: 0,
+              offY: 0
+            });
+          }
+          if (params.ch2On) {
+            channels.push({
+              angle: params.ch2Angle,
+              channelMode: params.ch2Color,
+              offX: regX,
+              offY: regY
+            });
+          }
+
+          // Generate halftone dots for each channel (but all black)
+          channels.forEach(function(ch) {
+            var chData = extractChannel(pixels, imgW * imgH, ch.channelMode);
+            var adjData = adjustChannel(chData, contrast, brightness);
+            
+            var angle = (ch.angle * Math.PI) / 180;
+            var cosA = Math.cos(angle), sinA = Math.sin(angle);
+            var diag = Math.ceil(Math.sqrt(imgW * imgW + imgH * imgH));
+            var cx0 = imgW / 2, cy0 = imgH / 2;
+
+            function computePackedRadius(cellSize, tone) {
+              var normalPack = 0.96;
+              var densePack = 1.0;
+              var denseStart = 0.72;
+              var denseEnd = 0.98;
+              var k = (tone - denseStart) / (denseEnd - denseStart);
+              if (k < 0) k = 0;
+              if (k > 1) k = 1;
+              k = k * k * (3 - 2 * k);
+              var packFactor = normalPack + (densePack - normalPack) * k;
+              return cellSize * 0.5 * packFactor * Math.sqrt(tone);
+            }
+
+            // Generate dots
+            for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
+              for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
+                var ccx = gx + cellSize * 0.5;
+                var ccy = gy + cellSize * 0.5;
+                var sx = ccx * cosA - ccy * sinA + cx0;
+                var sy = ccx * sinA + ccy * cosA + cy0;
+                
+                if (sx < -cellSize * 2 || sx > imgW + cellSize * 2 || sy < -cellSize * 2 || sy > imgH + cellSize * 2) continue;
+
+                var px = Math.round(sx), py = Math.round(sy);
+                if (px < 0) px = 0;
+                if (px >= imgW) px = imgW - 1;
+                if (py < 0) py = 0;
+                if (py >= imgH) py = imgH - 1;
+
+                var val = adjData[py * imgW + px];
+                var t = invertDots ? 1 - val : val;
+                if (t < 0.2) continue;
+                
+                var r = computePackedRadius(cellSize, t);
+                if (r < 0.4) continue;
+
+                var dotX = imgX + ch.offX + sx;
+                var dotY = imgY + ch.offY + sy;
+
+                if (shape === "circle" || shape === "square") {
+                  var size = r * 2;
+                  if (shape === "square") {
+                    svg += '<rect x="' + (dotX - size/2) + '" y="' + (dotY - size/2) + '" width="' + size + '" height="' + size + '"/>\n';
+                  } else {
+                    svg += '<circle cx="' + dotX + '" cy="' + dotY + '" r="' + r + '"/>\n';
+                  }
+                } else if (shape === "diamond") {
+                  var d = r * 1.35;
+                  svg += '<polygon points="' + dotX + ',' + (dotY - d) + ' ' + (dotX + d) + ',' + dotY + ' ' + dotX + ',' + (dotY + d) + ' ' + (dotX - d) + ',' + dotY + '"/>\n';
+                } else {
+                  // line
+                  svg += '<rect x="' + (dotX - cellSize * 0.5) + '" y="' + (dotY - r * 0.6) + '" width="' + cellSize + '" height="' + (r * 1.2) + '"/>\n';
+                }
+              }
+            }
+          });
+          
+          svg += '</g>\n';
+          svg += '</svg>';
+          var blob = new Blob([svg], { type: "image/svg+xml" });
+          resolve(blob);
+        });
+      }
+
       // Download function
       async function downloadImage() {
         var imgTitle = document.getElementById("imgTitle").value || "riso-halftone";
-        var filename = imgTitle + ".png";
+        var format = document.getElementById("exportFormat").value;
+        var extension = format === "svg-color" || format === "svg-bw" ? ".svg" : ".png";
+        var filename = imgTitle + extension;
 
         try {
+          var blob;
+          
+          // Common SVG parameters
+          var svgParams = {
+            dpi: getInt("outputRes"),
+            imgScale: getInt("imgScale"),
+            bgColor: getVal("bgColor"),
+            dotSize: getInt("dotSize"),
+            contrast: getInt("contrast"),
+            brightness: getInt("brightness"),
+            shape: getVal("dotShape"),
+            offsetX: getInt("offsetX"),
+            offsetY: getInt("offsetY"),
+            invertDots: document.getElementById("invertDotsToggle").dataset.state === "on",
+            removeBg: document.getElementById("removeBgToggle").dataset.state === "on",
+            ch1On: document.getElementById("ch1Toggle").dataset.state === "on",
+            ch1Ink: getVal("ch1Ink"),
+            ch1Op: getInt("ch1Op"),
+            ch1Angle: getInt("ch1Angle"),
+            ch1Color: getVal("ch1Color"),
+            ch2On: document.getElementById("ch2Toggle").dataset.state === "on",
+            ch2Ink: getVal("ch2Ink"),
+            ch2Op: getInt("ch2Op"),
+            ch2Angle: getInt("ch2Angle"),
+            ch2Color: getVal("ch2Color")
+          };
+
+          if (format === "svg-color") {
+            // Generate SVG with colors from parameters
+            blob = await generateSVGExport(srcImage, svgParams);
+          } else if (format === "svg-bw") {
+            // Generate SVG in black & white - ready to color in Illustrator
+            blob = await generateSVGBWExport(srcImage, svgParams);
+          } else {
+            // PNG raster
+            blob = await new Promise(function (r) {
+              canvas.toBlob(r, "image/png");
+            });
+          }
+
           if (downloadDirHandle) {
             // Use File System Access API
             var fileHandle = await downloadDirHandle.getFileHandle(filename, {
               create: true,
             });
             var writable = await fileHandle.createWritable();
-            var blob = await new Promise(function (r) {
-              canvas.toBlob(r, "image/png");
-            });
             await writable.write(blob);
             await writable.close();
             showNotification("Ficheiro guardado em: " + filename);
@@ -2178,13 +2503,14 @@
             // Fallback: standard download
             var link = document.createElement("a");
             link.download = filename;
-            link.href = canvas.toDataURL("image/png");
+            link.href = URL.createObjectURL(blob);
             link.click();
+            URL.revokeObjectURL(link.href);
             showNotification("Download iniciado: " + filename);
           }
         } catch (err) {
           console.error("Erro ao fazer download:", err);
-          showNotification("Erro ao guardar ficheiro");
+          showNotification("Erro ao guardar ficheiro: " + err.message);
         }
       }
 
