@@ -172,7 +172,7 @@
         font-weight: 800;
         margin-bottom: 2px;
       }
-      #fileInput {
+      #fileInput, #folderInput {
         display: none;
       }
       .field {
@@ -807,13 +807,13 @@
     <div class="workspace">
       <div class="sidebar">
         <div class="section">
-          <div class="section-title">Imagem</div>
+          <div class="section-title">Imagem / Batch</div>
           <div class="field">
             <label>DIRETÓRIO DOWNLOAD <span id="downloadPathLabel">Default</span></label>
             <input type="text" id="downloadPath" placeholder="deixa em branco para default" />
           </div>
           <div class="field">
-            <label>TÍTULO IMG <span id="imgTitleLabel">riso-halftone</span></label>
+            <label>TÍTULO IMG / BASE BATCH <span id="imgTitleLabel">riso-halftone</span></label>
             <input type="text" id="imgTitle" value="riso-halftone" placeholder="nome do arquivo" />
           </div>
           <div class="upload-zone" id="uploadZone">
@@ -821,6 +821,12 @@
             <p><strong>Clica ou arrasta</strong>JPG, PNG, WebP</p>
           </div>
           <input type="file" id="fileInput" accept="image/*" />
+          <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;" />
+          
+          <div class="btn-row" style="margin-top: 10px;">
+            <button class="btn" id="selectFolderBtn">Escolher Pasta</button>
+            <button class="btn primary" id="batchExportBtn" disabled>Processar Pasta</button>
+          </div>
         </div>
 
         <div class="section">
@@ -1022,7 +1028,7 @@
       <div class="canvas-area" id="canvasArea">
         <div class="empty-state" id="emptyState">
           <div class="icon">⬡</div>
-          <p>Carrega uma imagem<br />para comecar</p>
+          <p>Carrega uma imagem ou pasta<br />para comecar</p>
         </div>
         <div class="canvas-wrapper" id="canvasWrapper" style="display: none">
           <canvas id="mainCanvas"></canvas>
@@ -1105,6 +1111,11 @@
       var resizeRenderTimer = null;
       var downloadDirHandle = null;
 
+      var batchFiles = [];
+      var folderInput = document.getElementById("folderInput");
+      var selectFolderBtn = document.getElementById("selectFolderBtn");
+      var batchExportBtn = document.getElementById("batchExportBtn");
+
       // Load saved settings from localStorage
       function loadSettings() {
         var savedPath = localStorage.getItem("downloadPath");
@@ -1125,8 +1136,6 @@
         try {
           if (localStorage.getItem("downloadDirHandle")) {
             var handles = await window.indexedDB.databases ? Promise.resolve([]) : Promise.resolve([]);
-            // Note: Direct restoration of directory handles is not straightforward
-            // User will need to reselect folder after browser restart
           }
         } catch (err) {
           console.log("Não foi possível restaurar a pasta");
@@ -1166,7 +1175,6 @@
 
         document.body.appendChild(notification);
 
-        // Auto-remove after 5 seconds if no buttons
         if (!options.buttons || options.buttons.length === 0) {
           setTimeout(function () {
             removeNotification(notification);
@@ -1192,7 +1200,6 @@
       var colorCancelBtn = document.getElementById("colorCancelBtn");
       var colorConfirmBtn = document.getElementById("colorConfirmBtn");
 
-      // Populate color grid
       themeAccents.forEach(function (color) {
         var colorOption = document.createElement("div");
         colorOption.className = "color-option";
@@ -1210,29 +1217,24 @@
         colorGrid.appendChild(colorOption);
       });
 
-      // Open color modal
       colorPickerBtn.addEventListener("click", function () {
         colorModal.classList.add("active");
       });
 
-      // Close color modal
       colorCancelBtn.addEventListener("click", function () {
         colorModal.classList.remove("active");
       });
 
-      // Confirm color change
       colorConfirmBtn.addEventListener("click", function () {
         themeAccent = selectedAccent;
         document.documentElement.style.setProperty("--accent", themeAccent);
         localStorage.setItem("themeAccent", themeAccent);
 
-        // Update ink colors
         if (ch1Ink) ch1Ink.value = themeAccent;
         if (ch2Ink) ch2Ink.value = themeAccent;
         if (ch1InkVal) ch1InkVal.textContent = themeAccent;
         if (ch2InkVal) ch2InkVal.textContent = themeAccent;
 
-        // Re-render if image is loaded
         if (srcImage && !document.getElementById("renderBtn").disabled) {
           renderRiso();
         }
@@ -1241,7 +1243,6 @@
         showNotification("Cor de destaque alterada para " + themeAccent);
       });
 
-      // Close modal when clicking outside
       colorModal.addEventListener("click", function (e) {
         if (e.target === colorModal) {
           colorModal.classList.remove("active");
@@ -1279,8 +1280,6 @@
         var ink = hexToRgb(inkHex);
         var bg = hexToRgb(bgHex);
 
-        // Multiply output is: out = (src * dst) / 255.
-        // To preserve selected ink on the chosen paper color, solve src = (target * 255) / dst.
         function compensate(target, paper) {
           if (paper <= 0) return target;
           return Math.min(255, (target * 255) / paper);
@@ -1335,7 +1334,6 @@
         }, 80);
       }
 
-      // Extract one channel as Float32Array (0=dark, 1=bright)
       function extractChannel(pixels, count, mode) {
         var out = new Float32Array(count);
         for (var i = 0; i < count; i++) {
@@ -1351,7 +1349,6 @@
         return out;
       }
 
-      // Apply contrast + brightness
       function adjustChannel(data, contrast, brightness) {
         var out = new Float32Array(data.length);
         for (var i = 0; i < data.length; i++) {
@@ -1364,7 +1361,6 @@
         return out;
       }
 
-      // Draw halftone dots onto an offscreen canvas (imgW x imgH)
       function halftoneLayer(
         chData,
         imgW,
@@ -1381,7 +1377,6 @@
         var offCtx = offC.getContext("2d");
 
         function computePackedRadius(cellSize, tone) {
-          // In dense tones, remove the gap between dots; then progressively return to normal spacing.
           var normalPack = 0.96;
           var densePack = 1.0;
           var denseStart = 0.72;
@@ -1395,7 +1390,6 @@
         }
 
         function computeDenseBlend(tone) {
-          // Blend from circle to square as dots get denser.
           var start = 0.58;
           var end = 0.96;
           var k = (tone - start) / (end - start);
@@ -1427,7 +1421,6 @@
         offCtx.fillStyle = "rgb(" + ink.r + "," + ink.g + "," + ink.b + ")";
 
         if (shape === "metaballs") {
-          // True metaballs - optimized with downsampling
           var angle = (angleDeg * Math.PI) / 180;
           var cosA = Math.cos(angle),
             sinA = Math.sin(angle);
@@ -1435,7 +1428,6 @@
           var cx0 = imgW / 2,
             cy0 = imgH / 2;
 
-          // Collect all ball positions and strengths
           var balls = [];
 
           for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
@@ -1469,18 +1461,15 @@
             }
           }
 
-          // Create potential field with downsampling for speed
           var step = Math.max(1, Math.floor(cellSize / 3));
           var imgData = offCtx.createImageData(imgW, imgH);
           var data = imgData.data;
           var threshold = 0.4;
 
-          // Process at reduced resolution
           for (var py = 0; py < imgH; py += step) {
             for (var px = 0; px < imgW; px += step) {
               var potential = 0;
 
-              // Only check nearby balls
               for (var b = 0; b < balls.length; b++) {
                 var dx = px - balls[b].x;
                 var dy = py - balls[b].y;
@@ -1497,7 +1486,6 @@
               }
 
               if (potential >= threshold) {
-                // Fill step x step block
                 var alpha = Math.min(255, potential * 200);
                 for (var sy = py; sy < Math.min(py + step, imgH); sy++) {
                   for (var sx = px; sx < Math.min(px + step, imgW); sx++) {
@@ -1514,7 +1502,6 @@
 
           offCtx.putImageData(imgData, 0, 0);
         } else {
-          // Original pattern with rotation
           var angle = (angleDeg * Math.PI) / 180;
           var cosA = Math.cos(angle),
             sinA = Math.sin(angle);
@@ -1524,10 +1511,8 @@
 
           for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
             for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
-              // center of this grid cell in rotated coords
               var ccx = gx + cellSize * 0.5;
               var ccy = gy + cellSize * 0.5;
-              // unrotate to screen coords
               var sx = ccx * cosA - ccy * sinA + cx0;
               var sy = ccx * sinA + ccy * cosA + cy0;
               if (
@@ -1545,9 +1530,9 @@
               if (py < 0) py = 0;
               if (py >= imgH) py = imgH - 1;
 
-              var val = chData[py * imgW + px]; // 0=dark 1=light
-              var t = invert ? 1 - val : val; // Invert if needed
-              if (t < 0.2) continue; // Skip very dark areas
+              var val = chData[py * imgW + px];
+              var t = invert ? 1 - val : val;
+              if (t < 0.2) continue;
               var r = computePackedRadius(cellSize, t);
               if (r < 0.4) continue;
 
@@ -1575,7 +1560,6 @@
                 offCtx.closePath();
                 offCtx.fill();
               } else {
-                // line
                 offCtx.fillRect(-cellSize * 0.5, -r * 0.6, cellSize, r * 1.2);
               }
 
@@ -1586,21 +1570,18 @@
         return offC;
       }
 
-      // Improved noise function for organic texture
       function simpleNoise(x, y, seed) {
         var n =
           Math.sin(x * 12.9898 + y * 78.233 + seed * 43758.5453) * 43758.5453;
         return n - Math.floor(n);
       }
 
-      // Perlin-like noise interpolation
       function smoothNoise(x, y, seed) {
         var xi = Math.floor(x);
         var yi = Math.floor(y);
         var xf = x - xi;
         var yf = y - yi;
 
-        // Smoothstep
         var u = xf * xf * (3.0 - 2.0 * xf);
         var v = yf * yf * (3.0 - 2.0 * yf);
 
@@ -1614,7 +1595,6 @@
         return nx0 * (1.0 - v) + nx1 * v;
       }
 
-      // Fractal Brownian Motion - multiple octaves of noise
       function fbm(x, y, octaves, seed) {
         var value = 0;
         var amplitude = 1;
@@ -1632,7 +1612,6 @@
         return value / maxValue;
       }
 
-      // Generate random binary wear mask with smooth probabilistic edges
       function generateInkFailureMask(
         w,
         h,
@@ -1659,7 +1638,6 @@
         var edgeSoftness = featherAmount / 100;
         var minDim = Math.min(w, h);
 
-        // Intensity still nudges size and count while sliders provide direct control.
         var baseCount = Math.round(1 + countNorm * 10);
         var blobCount = Math.max(
           1,
@@ -1711,11 +1689,9 @@
             var chunkNoise = fbm(px / 130, py / 130, 3, seed + 777);
             var textureNoise = Math.min(1, whiteNoise * 0.8 + chunkNoise * 0.5);
 
-            // Binary erase with smooth transition by chance ramp, not alpha ramp.
             var eraseChance = intensityNorm * zoneFactor;
             eraseChance = eraseChance * (0.6 + textureNoise * 0.75);
 
-            // Extra sparse speckles around edges to avoid hard cut lines.
             var edgeSpeckle =
               Math.pow(Math.max(0, zoneFactor), 1.8) *
               (0.2 + whiteNoise * 0.25);
@@ -1737,7 +1713,6 @@
         return failC;
       }
 
-      // Add feathering/bleeding effect for more analog look
       function addInkFeathering(canvas, featherAmount) {
         if (featherAmount <= 0) return;
         var ctx = canvas.getContext("2d");
@@ -1746,13 +1721,11 @@
         var w = canvas.width;
         var h = canvas.height;
 
-        // Apply directional feathering (more downward for gravity effect)
         var featherRadius = Math.ceil(featherAmount / 20);
         for (var py = 0; py < h - featherRadius; py++) {
           for (var px = 0; px < w; px++) {
             var idx = (py * w + px) * 4;
             if (data[idx + 3] > 128) {
-              // Bleed slightly downward
               for (var fy = 1; fy <= featherRadius; fy++) {
                 var fyIdx = ((py + fy) * w + px) * 4;
                 if (fyIdx < data.length) {
@@ -1773,7 +1746,6 @@
         ctx.putImageData(origImageData, 0, 0);
       }
 
-      // Add film grain
       function addGrain(targetCtx, w, h, amount) {
         if (amount <= 0) return;
         var gc = document.createElement("canvas");
@@ -1826,7 +1798,6 @@
         var invertDots =
           document.getElementById("invertDotsToggle").dataset.state === "on";
 
-        // Scale source image
         var imgW = Math.round((srcImage.width * imgScalePct * dpi) / 72);
         var imgH = Math.round((srcImage.height * imgScalePct * dpi) / 72);
         if (imgW < 1) imgW = 1;
@@ -1854,7 +1825,6 @@
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, W, H);
 
-        // Pre-generate zone wear mask
         var failureMask = generateInkFailureMask(
           W,
           H,
@@ -1889,14 +1859,12 @@
             invertDots,
           );
 
-          // Place onto full canvas
           var fullC = document.createElement("canvas");
           fullC.width = W;
           fullC.height = H;
           var fCtx = fullC.getContext("2d");
           fCtx.drawImage(halfC, imgX + offX, imgY + offY);
 
-          // Apply ink failures
           if (failureMask && inkFailAmount > 0) {
             fCtx.globalCompositeOperation = "destination-out";
             fCtx.drawImage(failureMask, 0, 0);
@@ -1954,15 +1922,14 @@
             var dR = Math.abs(r - bgRgb.r);
             var dG = Math.abs(g - bgRgb.g);
             var dB = Math.abs(b - bgRgb.b);
-            var tolerance = 5; // Stricter for better background removal
+            var tolerance = 5;
             if (dR < tolerance && dG < tolerance && dB < tolerance) {
-              data[i + 3] = 0; // Remove completely
+              data[i + 3] = 0;
             } else if (
               dR < tolerance * 2.5 &&
               dG < tolerance * 2.5 &&
               dB < tolerance * 2.5
             ) {
-              // Semi-transparent for near-background colors
               data[i + 3] = Math.round(data[i + 3] * 0.5);
             }
           }
@@ -2145,25 +2112,31 @@
         .getElementById("downloadBtn")
         .addEventListener("click", downloadImage);
 
-      // Allow user to select download folder
-      var selectFolderBtn = document.createElement("button");
-      selectFolderBtn.className = "btn";
-      selectFolderBtn.textContent = "Escolher Pasta";
-      selectFolderBtn.style.marginTop = "8px";
-      selectFolderBtn.addEventListener("click", async function () {
-        try {
-          downloadDirHandle = await window.showDirectoryPicker();
-          document.getElementById("downloadPath").value = "[Pasta Selecionada]";
-          document.getElementById("downloadPathLabel").textContent = "[Pasta Selecionada]";
-          localStorage.setItem("downloadDirHandle", true);
-          showNotification("Pasta selecionada com sucesso!");
-        } catch (err) {
-          console.log("Seleção de pasta cancelada");
-        }
-      });
-      document.getElementById("downloadPath").parentNode.appendChild(selectFolderBtn);
+      var selectFolderBtn = document.getElementById("selectFolderBtn");
+      var folderInput = document.getElementById("folderInput");
+      var batchExportBtn = document.getElementById("batchExportBtn");
 
-      // Generate SVG from halftone data
+      selectFolderBtn.addEventListener("click", function () {
+        folderInput.click();
+      });
+
+      folderInput.addEventListener("change", function (e) {
+        var files = Array.from(e.target.files).filter(function (file) {
+          return file.type.startsWith("image/");
+        });
+
+        if (files.length === 0) {
+          showNotification("Nenhuma imagem encontrada na pasta selecionada.");
+          return;
+        }
+
+        batchFiles = files;
+        batchExportBtn.disabled = false;
+        
+        loadFile(batchFiles[0]);
+        showNotification(batchFiles.length + " imagens carregadas. Afina os parâmetros com a 1ª imagem.");
+      });
+
       function generateSVGExport(srcImage, params) {
         return new Promise(function (resolve) {
           var dpi = params.dpi;
@@ -2180,7 +2153,6 @@
           var regY = (params.offsetY * dpi) / 72;
           var invertDots = params.invertDots;
           
-          // Scale source image
           var imgW = Math.round((srcImage.width * imgScalePct * dpi) / 72);
           var imgH = Math.round((srcImage.height * imgScalePct * dpi) / 72);
           if (imgW < 1) imgW = 1;
@@ -2196,7 +2168,6 @@
           var imgX = Math.round((W - imgW) / 2);
           var imgY = Math.round((H - imgH) / 2);
 
-          // Build SVG
           var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n';
           svg += '<defs>\n';
           svg += '  <style>\n';
@@ -2204,12 +2175,10 @@
           svg += '  </style>\n';
           svg += '</defs>\n';
           
-          // Background
           if (!params.removeBg) {
             svg += '<rect width="' + W + '" height="' + H + '" fill="' + bgColor + '"/>\n';
           }
           
-          // Create groups for each channel
           var channels = [];
           if (params.ch1On) {
             channels.push({
@@ -2232,7 +2201,6 @@
             });
           }
 
-          // Generate halftone dots for each channel
           channels.forEach(function(ch, idx) {
             svg += '<g opacity="' + ch.opacity + '" fill="' + ch.color + '">\n';
             
@@ -2257,7 +2225,6 @@
               return cellSize * 0.5 * packFactor * Math.sqrt(tone);
             }
 
-            // Generate dots
             for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
               for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
                 var ccx = gx + cellSize * 0.5;
@@ -2294,7 +2261,6 @@
                   var d = r * 1.35;
                   svg += '<polygon points="' + dotX + ',' + (dotY - d) + ' ' + (dotX + d) + ',' + dotY + ' ' + dotX + ',' + (dotY + d) + ' ' + (dotX - d) + ',' + dotY + '"/>\n';
                 } else {
-                  // line
                   svg += '<rect x="' + (dotX - cellSize * 0.5) + '" y="' + (dotY - r * 0.6) + '" width="' + cellSize + '" height="' + (r * 1.2) + '"/>\n';
                 }
               }
@@ -2309,7 +2275,6 @@
         });
       }
 
-      // Generate SVG in Black & White (for coloring in Illustrator)
       function generateSVGBWExport(srcImage, params) {
         return new Promise(function (resolve) {
           var dpi = params.dpi;
@@ -2325,7 +2290,6 @@
           var regY = (params.offsetY * dpi) / 72;
           var invertDots = params.invertDots;
           
-          // Scale source image
           var imgW = Math.round((srcImage.width * imgScalePct * dpi) / 72);
           var imgH = Math.round((srcImage.height * imgScalePct * dpi) / 72);
           if (imgW < 1) imgW = 1;
@@ -2341,15 +2305,9 @@
           var imgX = Math.round((W - imgW) / 2);
           var imgY = Math.round((H - imgH) / 2);
 
-          // Build SVG
           var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n';
-          
-          // No background fill - transparent
-          
-          // Create group with all black dots
           svg += '<g fill="#000000">\n';
           
-          // Process both channels but render as black
           var channels = [];
           if (params.ch1On) {
             channels.push({
@@ -2368,7 +2326,6 @@
             });
           }
 
-          // Generate halftone dots for each channel (but all black)
           channels.forEach(function(ch) {
             var chData = extractChannel(pixels, imgW * imgH, ch.channelMode);
             var adjData = adjustChannel(chData, contrast, brightness);
@@ -2391,7 +2348,6 @@
               return cellSize * 0.5 * packFactor * Math.sqrt(tone);
             }
 
-            // Generate dots
             for (var gy = -diag; gy < diag + cellSize; gy += cellSize) {
               for (var gx = -diag; gx < diag + cellSize; gx += cellSize) {
                 var ccx = gx + cellSize * 0.5;
@@ -2428,7 +2384,6 @@
                   var d = r * 1.35;
                   svg += '<polygon points="' + dotX + ',' + (dotY - d) + ' ' + (dotX + d) + ',' + dotY + ' ' + dotX + ',' + (dotY + d) + ' ' + (dotX - d) + ',' + dotY + '"/>\n';
                 } else {
-                  // line
                   svg += '<rect x="' + (dotX - cellSize * 0.5) + '" y="' + (dotY - r * 0.6) + '" width="' + cellSize + '" height="' + (r * 1.2) + '"/>\n';
                 }
               }
@@ -2442,7 +2397,185 @@
         });
       }
 
-      // Download function
+      async function processSingleImage(imageElement, params, format) {
+        if (format === "svg-color") {
+          return await generateSVGExport(imageElement, params);
+        } else if (format === "svg-bw") {
+          return await generateSVGBWExport(imageElement, params);
+        }
+
+        var dpi = params.dpi;
+        var H = Math.round(11 * dpi);
+        var imgAspectRatio = imageElement.width / imageElement.height;
+        var W = Math.round(H * imgAspectRatio);
+        var imgScalePct = params.imgScale / 100;
+        
+        var imgW = Math.max(1, Math.round((imageElement.width * imgScalePct * dpi) / 72));
+        var imgH = Math.max(1, Math.round((imageElement.height * imgScalePct * dpi) / 72));
+
+        var srcC = document.createElement("canvas");
+        srcC.width = imgW;
+        srcC.height = imgH;
+        var srcCtx = srcC.getContext("2d");
+        srcCtx.drawImage(imageElement, 0, 0, imgW, imgH);
+        var pixels = srcCtx.getImageData(0, 0, imgW, imgH).data;
+
+        var imgX = Math.round((W - imgW) / 2);
+        var imgY = Math.round((H - imgH) / 2);
+
+        var outCanvas = document.createElement("canvas");
+        outCanvas.width = W;
+        outCanvas.height = H;
+        var outCtx = outCanvas.getContext("2d");
+
+        outCtx.fillStyle = params.bgColor;
+        outCtx.fillRect(0, 0, W, H);
+
+        var failureMask = generateInkFailureMask(
+          W, H, params.inkFail, params.feather, params.wearSize, params.wearCount, wearRandomSeed
+        );
+
+        async function drawLayer(chMode, inkHex, opacity, angle, offX, offY) {
+          var chData = extractChannel(pixels, imgW * imgH, chMode);
+          var adjData = adjustChannel(chData, params.contrast / 10, params.brightness / 100);
+          var inkForRender = getCompensatedInkHex(inkHex, params.bgColor, params.blendMode);
+
+          var halfC = halftoneLayer(
+            adjData, imgW, imgH, inkForRender, Math.max(1, (params.dotSize * dpi) / 72),
+            angle, params.shape, params.invertDots
+          );
+
+          var fullC = document.createElement("canvas");
+          fullC.width = W;
+          fullC.height = H;
+          var fCtx = fullC.getContext("2d");
+          fCtx.drawImage(halfC, imgX + offX, imgY + offY);
+
+          if (failureMask && params.inkFail > 0) {
+            fCtx.globalCompositeOperation = "destination-out";
+            fCtx.drawImage(failureMask, 0, 0);
+            fCtx.globalCompositeOperation = "source-over";
+          }
+
+          outCtx.globalAlpha = opacity / 100;
+          outCtx.globalCompositeOperation = params.blendMode;
+          outCtx.drawImage(fullC, 0, 0);
+          outCtx.globalAlpha = 1;
+          outCtx.globalCompositeOperation = "source-over";
+        }
+
+        if (params.ch1On) {
+          await drawLayer(params.ch1Color, params.ch1Ink, params.ch1Op, params.ch1Angle, 0, 0);
+        }
+        if (params.ch2On) {
+          await drawLayer(params.ch2Color, params.ch2Ink, params.ch2Op, params.ch2Angle, (params.offsetX * dpi) / 72, (params.offsetY * dpi) / 72);
+        }
+
+        if (!params.removeBg) {
+          addGrain(outCtx, W, H, params.grain);
+        } else {
+          var imgData = outCtx.getImageData(0, 0, W, H);
+          var data = imgData.data;
+          var bgRgb = hexToRgb(params.bgColor);
+          for (var i = 0; i < data.length; i += 4) {
+            var r = data[i], g = data[i + 1], b = data[i + 2];
+            var dR = Math.abs(r - bgRgb.r), dG = Math.abs(g - bgRgb.g), dB = Math.abs(b - bgRgb.b);
+            var tolerance = 5;
+            if (dR < tolerance && dG < tolerance && dB < tolerance) {
+              data[i + 3] = 0;
+            } else if (dR < tolerance * 2.5 && dG < tolerance * 2.5 && dB < tolerance * 2.5) {
+              data[i + 3] = Math.round(data[i + 3] * 0.5);
+            }
+          }
+          outCtx.putImageData(imgData, 0, 0);
+        }
+
+        return new Promise(function (resolve) {
+          outCanvas.toBlob(resolve, "image/png");
+        });
+      }
+
+      batchExportBtn.addEventListener("click", async function () {
+        if (batchFiles.length === 0) return;
+
+        try {
+          var outDirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+
+          processingOverlay.classList.add("active");
+
+          var format = getVal("exportFormat");
+          var ext = format === "svg-color" || format === "svg-bw" ? ".svg" : ".png";
+
+          var currentParams = {
+            dpi: getInt("outputRes"),
+            imgScale: getInt("imgScale"),
+            bgColor: getVal("bgColor"),
+            blendMode: getVal("blendMode"),
+            dotSize: getInt("dotSize"),
+            contrast: getInt("contrast"),
+            brightness: getInt("brightness"),
+            grain: getInt("grain"),
+            shape: getVal("dotShape"),
+            offsetX: getInt("offsetX"),
+            offsetY: getInt("offsetY"),
+            inkFail: getInt("inkFail"),
+            feather: getInt("feather"),
+            wearSize: getInt("wearSize"),
+            wearCount: getInt("wearCount"),
+            removeBg: document.getElementById("removeBgToggle").dataset.state === "on",
+            invertDots: document.getElementById("invertDotsToggle").dataset.state === "on",
+            ch1On: document.getElementById("ch1Toggle").dataset.state === "on",
+            ch1Color: getVal("ch1Color"),
+            ch1Ink: getVal("ch1Ink"),
+            ch1Op: getInt("ch1Op"),
+            ch1Angle: getInt("ch1Angle"),
+            ch2On: document.getElementById("ch2Toggle").dataset.state === "on",
+            ch2Color: getVal("ch2Color"),
+            ch2Ink: getVal("ch2Ink"),
+            ch2Op: getInt("ch2Op"),
+            ch2Angle: getInt("ch2Angle")
+          };
+
+          for (var i = 0; i < batchFiles.length; i++) {
+            var file = batchFiles[i];
+            var progress = Math.round(((i + 1) / batchFiles.length) * 100);
+            setProgress(progress, "A processar " + (i + 1) + " de " + batchFiles.length + " (" + file.name + ")");
+            await tick();
+
+            var img = await new Promise(function (resolve) {
+              var reader = new FileReader();
+              reader.onload = function (e) {
+                var image = new Image();
+                image.onload = function () { resolve(image); };
+                image.src = e.target.result;
+              };
+              reader.readAsDataURL(file);
+            });
+
+            var blob = await processSingleImage(img, currentParams, format);
+
+            var baseName = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+            var outName = baseName + "_halftone" + ext;
+            var newFileHandle = await outDirHandle.getFileHandle(outName, { create: true });
+            var writable = await newFileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          }
+
+          setProgress(100, "Concluído!");
+          showNotification("Exportação em lote de " + batchFiles.length + " imagens concluída!");
+        } catch (err) {
+          console.error(err);
+          if (err.name !== "AbortError") {
+            showNotification("Erro durante a exportação em lote: " + err.message);
+          }
+        } finally {
+          setTimeout(function () {
+            processingOverlay.classList.remove("active");
+          }, 500);
+        }
+      });
+
       async function downloadImage() {
         var imgTitle = document.getElementById("imgTitle").value || "riso-halftone";
         var format = document.getElementById("exportFormat").value;
@@ -2452,7 +2585,6 @@
         try {
           var blob;
           
-          // Common SVG parameters
           var svgParams = {
             dpi: getInt("outputRes"),
             imgScale: getInt("imgScale"),
@@ -2478,20 +2610,16 @@
           };
 
           if (format === "svg-color") {
-            // Generate SVG with colors from parameters
             blob = await generateSVGExport(srcImage, svgParams);
           } else if (format === "svg-bw") {
-            // Generate SVG in black & white - ready to color in Illustrator
             blob = await generateSVGBWExport(srcImage, svgParams);
           } else {
-            // PNG raster
             blob = await new Promise(function (r) {
               canvas.toBlob(r, "image/png");
             });
           }
 
           if (downloadDirHandle) {
-            // Use File System Access API
             var fileHandle = await downloadDirHandle.getFileHandle(filename, {
               create: true,
             });
@@ -2500,7 +2628,6 @@
             await writable.close();
             showNotification("Ficheiro guardado em: " + filename);
           } else {
-            // Fallback: standard download
             var link = document.createElement("a");
             link.download = filename;
             link.href = URL.createObjectURL(blob);
@@ -2514,7 +2641,6 @@
         }
       }
 
-      // Auto-render when parameters change
       function setupAutoRender() {
         var renderTimeout;
         var scheduleRender = function () {
@@ -2525,7 +2651,6 @@
           }, 300);
         };
 
-        // All inputs that should trigger re-render
         var controlIds = [
           "ch1Color",
           "ch1Ink",
@@ -2566,7 +2691,6 @@
       }
       setupAutoRender();
 
-      // Wear randomness should only change when wear controls are edited.
       ["inkFail", "wearSize", "wearCount", "feather"].forEach(function (id) {
         var el = document.getElementById(id);
         if (!el) return;
@@ -2577,7 +2701,6 @@
         el.addEventListener("change", refreshWearSeed);
       });
 
-      // Range labels
       var rangeCfg = {
         ch1Op: ["ch1OpVal", "%"],
         ch2Op: ["ch2OpVal", "%"],
